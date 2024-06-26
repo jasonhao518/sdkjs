@@ -5180,6 +5180,7 @@ function (window, undefined) {
 	cCOUNTIFS.prototype.argumentsType = [[argType.reference, argType.any]];
 	cCOUNTIFS.prototype.Calculate = function (arg) {
 		let i, j, arg0, arg1, matchingInfo, arg0Matrix, arg1Matrix, _count = 0, argBaseDimension, argNextDimension;
+		let resArrayLength = 0;
 		for (let k = 0; k < arg.length; k += 2) {
 			arg0 = arg[k];
 			arg1 = arg[k + 1];
@@ -5214,13 +5215,17 @@ function (window, undefined) {
 			if (!arg0Matrix) {
 				arg0Matrix = matrixClone(arg1Matrix);
 				argBaseDimension = argNextDimension;
+				resArrayLength = arg0Matrix.length;
 			}
 			if (argNextDimension.row !== argBaseDimension.row || argNextDimension.col !== argBaseDimension.col) {
 				return new cError(cErrorType.wrong_value_type);
 			}
+			resArrayLength = resArrayLength > arg1Matrix.length ? arg1Matrix.length : resArrayLength;
 			for (i = 0; i < arg1Matrix.length; ++i) {
 				if (!arg1Matrix[i]) {
-					arg0Matrix[i] = null;
+					if (arg0Matrix[i]) {
+						arg0Matrix[i] = null;
+					}
 					continue;
 				}
 				for (j = 0; j < arg1Matrix[i].length; ++j) {
@@ -5230,8 +5235,7 @@ function (window, undefined) {
 				}
 			}
 		}
-
-		for (i = 0; i < arg0Matrix.length; ++i) {
+		for (i = 0; i < resArrayLength; ++i) {
 			if (!arg0Matrix[i]) {
 				continue;
 			}
@@ -6124,6 +6128,7 @@ function (window, undefined) {
 	cFORECAST.prototype.argumentsMin = 3;
 	cFORECAST.prototype.argumentsMax = 3;
 	cFORECAST.prototype.arrayIndexes = {1: 1, 2: 1};
+	cFORECAST.prototype.numFormat = AscCommonExcel.cNumFormatNone;
 	cFORECAST.prototype.argumentsType = [argType.number, argType.array, argType.array];
 	cFORECAST.prototype.Calculate = function (arg) {
 
@@ -6222,32 +6227,33 @@ function (window, undefined) {
 	cFORECAST_ETS.prototype.name = 'FORECAST.ETS';
 	cFORECAST_ETS.prototype.argumentsMin = 3;
 	cFORECAST_ETS.prototype.argumentsMax = 6;
+	cFORECAST_ETS.prototype.numFormat = AscCommonExcel.cNumFormatNone;
 	cFORECAST_ETS.prototype.argumentsType = [argType.number, argType.reference, argType.reference, argType.number, argType.number, argType.number];
 	cFORECAST_ETS.prototype.Calculate = function (arg) {
 
-		//результаты данной фукнции соответсвуют результатам LO, но отличаются от MS!!!
-		var oArguments = this._prepareArguments(arg, arguments[1], true,
+		// The results of this function correspond to the results of LO, but differ from MS!!!
+		let oArguments = this._prepareArguments(arg, arguments[1], true,
 			[null, cElementType.array, cElementType.array]);
-		var argClone = oArguments.args;
+		let argClone = oArguments.args;
 
 		argClone[3] = argClone[3] ? argClone[3].tocNumber() : new cNumber(1);
 		argClone[4] = argClone[4] ? argClone[4].tocNumber() : new cNumber(1);
 		argClone[5] = argClone[5] ? argClone[5].tocNumber() : new cNumber(1);
 
 
-		argClone[0] = argClone[0].getMatrix();
+		argClone[0] = argClone[0].getMatrix && argClone[0].getMatrix();
 
-		var argError;
+		let argError;
 		if (argError = this._checkErrorArg(argClone)) {
 			return argError;
 		}
 
-		var pTMat = argClone[0];
-		var pMatY = argClone[1];
-		var pMatX = argClone[2];
-		var nSmplInPrd = argClone[3].getValue();
-		var bDataCompletion = argClone[4].getValue();
-		var nAggregation = argClone[5].getValue();
+		let pTMat = argClone[0],
+			pMatY = argClone[1],
+			pMatX = argClone[2],
+			nSmplInPrd = argClone[3].getValue(),
+			bDataCompletion = argClone[4].getValue(),
+			nAggregation = argClone[5].getValue();
 
 		if (nAggregation < 1 || nAggregation > 7) {
 			return new cError(cErrorType.not_numeric);
@@ -6256,8 +6262,8 @@ function (window, undefined) {
 			return new cError(cErrorType.not_numeric);
 		}
 
-		var aETSCalc = new ScETSForecastCalculation(pMatX.length);
-		var isError = aETSCalc.PreprocessDataRange(pMatX, pMatY, nSmplInPrd, bDataCompletion, nAggregation, pTMat);
+		let aETSCalc = new ScETSForecastCalculation(pMatX.length);
+		let isError = aETSCalc.PreprocessDataRange(pMatX, pMatY, nSmplInPrd, bDataCompletion, nAggregation, pTMat);
 		if (!isError) {
 			///*,( eETSType != etsStatAdd && eETSType != etsStatMult ? pTMat : nullptr ),eETSType )
 			return new cError(cErrorType.wrong_value_type);
@@ -6266,8 +6272,21 @@ function (window, undefined) {
 		}
 
 
-		var pFcMat = aETSCalc.GetForecastRange(pTMat);
+		// todo bug 36721:
+		// The prediction result differs from ms - due to different smoothing coefficients (alpha, beta, gamma)
+		// Error values ​​are interpreted differently in MS, and because of this, the values ​​of the smoothing coefficients do not match, which at the end affects the result
+		// Although the selection and comparison method is the same as in LO and as in the main formula, but the result is still different.
+		// Most likely ms has behavior that is not specified in the documentation when calculating the forecast since the ETS(AAA) method produces a different result
+		// Note:in the current solution, if there are less than 7 values ​​in the range, then the coefficients are omitted (equal to 0) and the function is performed in EDS mode
+		// By manually substituting coefficients to match the values ​​of the FORECAST.ETS formula and the Holt-Winters model, it was found
+		// that ms does not calculate the smallest forecast error MAE, MSE, RMSE, but (supposedly) uses some other method of analysis and selection of smoothing coefficients
+		// for example, for short-term forecasts one coefficients and calculation model can be used, and for long-term ones completely different.
+		// An alternative to this approach is dynamic change smoothing parameters.
+		// In methods of evolution and simplex planning adaptation parameters are constantly changing at every step.
+		// For each the smoothing parameter generates several values.
+		// https://otexts.com/fpp2/holt-winters.html
 
+		let pFcMat = aETSCalc.GetForecastRange(pTMat);
 
 		return pFcMat && pFcMat[0] ? new cNumber(pFcMat[0][0]) : new cError(cErrorType.not_numeric);
 	};
@@ -6284,6 +6303,7 @@ function (window, undefined) {
 	cFORECAST_ETS_CONFINT.prototype.name = 'FORECAST.ETS.CONFINT';
 	cFORECAST_ETS_CONFINT.prototype.argumentsMin = 3;
 	cFORECAST_ETS_CONFINT.prototype.argumentsMax = 7;
+	cFORECAST_ETS_CONFINT.prototype.numFormat = AscCommonExcel.cNumFormatNone;
 	cFORECAST_ETS_CONFINT.prototype.argumentsType = [argType.number, argType.reference, argType.reference, argType.number, argType.number,
 		argType.number, argType.number];
 	cFORECAST_ETS_CONFINT.prototype.Calculate = function (arg) {
@@ -6363,6 +6383,7 @@ function (window, undefined) {
 	cFORECAST_ETS_SEASONALITY.prototype.argumentsMin = 2;
 	cFORECAST_ETS_SEASONALITY.prototype.argumentsMax = 4;
 	cFORECAST_ETS_SEASONALITY.prototype.arrayIndexes = {0: 1, 1: 1};
+	cFORECAST_ETS_SEASONALITY.prototype.numFormat = AscCommonExcel.cNumFormatNone;
 	cFORECAST_ETS_SEASONALITY.prototype.argumentsType = [argType.reference, argType.reference, argType.number, argType.number];
 	cFORECAST_ETS_SEASONALITY.prototype.Calculate = function (arg) {
 
@@ -6417,13 +6438,14 @@ function (window, undefined) {
 	cFORECAST_ETS_STAT.prototype.name = 'FORECAST.ETS.STAT';
 	cFORECAST_ETS_STAT.prototype.argumentsMin = 3;
 	cFORECAST_ETS_STAT.prototype.argumentsMax = 6;
+	cFORECAST_ETS_STAT.prototype.numFormat = AscCommonExcel.cNumFormatNone;
 	cFORECAST_ETS_STAT.prototype.argumentsType = [argType.reference, argType.reference, argType.number, argType.number,
 		argType.number, argType.number];
 	cFORECAST_ETS_STAT.prototype.Calculate = function (arg) {
 
-		//результаты данной фукнции соответсвуют результатам LO, но отличаются от MS!!!
-		var oArguments = this._prepareArguments(arg, arguments[1], true, [cElementType.array, cElementType.array]);
-		var argClone = oArguments.args;
+		// The results of this function correspond to the results of LO, but differ from MS!!!
+		let oArguments = this._prepareArguments(arg, arguments[1], true, [cElementType.array, cElementType.array]);
+		let argClone = oArguments.args;
 
 		argClone[3] = argClone[3] ? argClone[3].tocNumber() : new cNumber(1);
 		argClone[4] = argClone[4] ? argClone[4].tocNumber() : new cNumber(1);
@@ -6431,17 +6453,17 @@ function (window, undefined) {
 
 		argClone[2] = convertToMatrix(argClone[2]);
 
-		var argError;
+		let argError;
 		if (argError = this._checkErrorArg(argClone)) {
 			return argError;
 		}
 
-		var pMatY = argClone[0];
-		var pMatX = argClone[1];
-		var pTypeMat = argClone[2];
-		var nSmplInPrd = argClone[3].getValue();
-		var bDataCompletion = argClone[4].getValue();
-		var nAggregation = argClone[5].getValue();
+		let pMatY = argClone[0],
+			pMatX = argClone[1],
+			pTypeMat = argClone[2],
+			nSmplInPrd = argClone[3].getValue(),
+			bDataCompletion = argClone[4].getValue(),
+			nAggregation = argClone[5].getValue();
 
 		if (nAggregation < 1 || nAggregation > 7) {
 			return new cError(cErrorType.not_numeric);
@@ -6450,16 +6472,19 @@ function (window, undefined) {
 			return new cError(cErrorType.not_numeric);
 		}
 
-		var aETSCalc = new ScETSForecastCalculation(pMatX.length);
-		var isError = aETSCalc.PreprocessDataRange(pMatX, pMatY, nSmplInPrd, bDataCompletion, nAggregation);
+		let aETSCalc = new ScETSForecastCalculation(pMatX.length);
+		let isError = aETSCalc.PreprocessDataRange(pMatX, pMatY, nSmplInPrd, bDataCompletion, nAggregation);
 		if (!isError) {
 			return new cError(cErrorType.wrong_value_type);
 		} else if (isError && cElementType.error === isError.type) {
 			return isError;
 		}
 
-		var pFcMat = aETSCalc.GetStatisticValue(pTypeMat);
-		var res = null;
+		// todo bug 36416:
+		// Same problem as in bug 36721 - differences in error analysis and, as a result, different calculations of smoothing coefficients that affect the final result 
+
+		let pFcMat = aETSCalc.GetStatisticValue(pTypeMat);
+		let res = null;
 		if (!pFcMat) {
 			return new cError(cErrorType.wrong_value_type);
 		} else {
@@ -8734,7 +8759,7 @@ function (window, undefined) {
 	cNORMDIST.prototype.name = 'NORMDIST';
 	cNORMDIST.prototype.argumentsMin = 4;
 	cNORMDIST.prototype.argumentsMax = 4;
-	cNORMDIST.prototype.argumentsType = [argType.number];
+	cNORMDIST.prototype.argumentsType = [argType.number, argType.number, argType.number, argType.logical];
 	cNORMDIST.prototype.Calculate = function (arg) {
 
 		var arg0 = arg[0], arg1 = arg[1], arg2 = arg[2], arg3 = arg[3];
@@ -10179,8 +10204,6 @@ function (window, undefined) {
 	cSMALL.prototype.argumentsType = [argType.number, argType.number];
 	cSMALL.prototype.Calculate = function (arg) {
 
-		var retArr = new cArray();
-
 		function frequency(A, k) {
 
 			var tA = [];
@@ -10216,20 +10239,37 @@ function (window, undefined) {
 			retArr.addElement(frequency(arg0, e));
 		}
 
-		var arg0 = arg[0], arg1 = arg[1];
-		if (arg0 instanceof cArea || arg0 instanceof cArray) {
+		let arg0 = arg[0], arg1 = arg[1], retArr = new cArray();
+		if ((arg0.type !== cElementType.array && arg0.type !== cElementType.cellsRange && arg0.type !== cElementType.cellsRange3D) &&
+			(arg1.type !== cElementType.array && arg1.type !== cElementType.cellsRange && arg1.type !== cElementType.cellsRange3D)) {
+			/* value to value */
+			arg0 = arg0.tocNumber();
+			arg1 = arg1.tocNumber();
+
+			if (arg0.type === cElementType.error) {
+				return arg0;
+			}
+			if (arg1.type === cElementType.error) {
+				return arg1;
+			}
+			if (arg1.getValue() !== 1) {
+				return new cError(cErrorType.not_numeric);
+			}
+
+			return arg0;
+		}
+
+		if (cElementType.cellsRange === arg0.type || cElementType.array === arg0.type) {
 			arg0 = arg0.getMatrix(this.excludeHiddenRows, this.excludeErrorsVal, this.excludeNestedStAg);
-		} else if (arg0 instanceof cArea3D) {
+		} else if (cElementType.cellsRange3D === arg0.type) {
 			arg0 = arg0.getMatrix(this.excludeHiddenRows, this.excludeErrorsVal, this.excludeNestedStAg)[0];
 		} else {
 			return new cError(cErrorType.not_numeric);
 		}
 
-
-		if (arg1 instanceof cArea || arg1 instanceof cArea3D) {
+		if (cElementType.cellsRange === arg0.type || cElementType.cellsRange3D === arg0.type) {
 			arg1 = arg1.cross(arguments[1]);
-		} else if (arg1 instanceof cArray) {
-//        arg1 = arg1.getElement( 0 );
+		} else if (cElementType.array === arg0.type) {
 			arg1.foreach(actionArray);
 			return retArr;
 		}

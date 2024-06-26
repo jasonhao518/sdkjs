@@ -540,12 +540,6 @@ g_oColorManager = new ColorManager();
 	Fragment.prototype.initText = function () {
 		this.setFragmentText(this.charCodes ? AscCommon.convertUnicodeToUTF16(this.charCodes) : "", true);
 	};
-	Fragment.prototype.getCharCode = function (index) {
-		if (!this.isInitCharCodes()) {
-			this.initCharCodes();
-		}
-		return this.charCodes && this.charCodes[index];
-	};
 	Fragment.prototype.isInitCharCodes = function () {
 		return this.charCodes !== null;
 	};
@@ -1155,6 +1149,7 @@ var g_oFontProperties = {
 		}
 		this.fn = stream.GetString();
 	};
+	window["AscCommonExcel"].Font = Font;
 
 	var c_oAscPatternType = {
 		DarkDown :  0,
@@ -5448,6 +5443,7 @@ CCellStyles.prototype._prepareCellStyle = function (name) {
 		return style.XfId;
 
 	if (defaultStyle) {
+		//todo add to history. it allows save XfId in history
 		this.CustomStyles[i] = defaultStyle.clone();
 		this.CustomStyles[i].XfId = ++maxXfId;
 		return this.CustomStyles[i].XfId;
@@ -6302,7 +6298,8 @@ StyleManager.prototype =
 			null == this.CustomWidth && 0 === this.outlineLevel && false == this.collapsed;
 	};
 	Col.prototype.isUpdateScroll = function () {
-		return null !== this.hd || null !== this.xfs || 0 !== this.outlineLevel || false !== this.collapsed;
+		//TODO temporary added check on CustomWidth -> nColsCount common for scroll/draw. need separate nColsCount for draw and for scroll
+		return null !== this.hd || null !== this.xfs || 0 !== this.outlineLevel || false !== this.collapsed || true === this.CustomWidth;
 	};
 	Col.prototype.clone = function (oNewWs) {
 		if (!oNewWs) {
@@ -6386,6 +6383,7 @@ StyleManager.prototype =
 		this.xfs = g_StyleCache.addXf(xfs);
 	};
 	Col.prototype.setCellStyle = function (val) {
+		var oStyle;
 		var newVal = this.ws.workbook.CellStyles._prepareCellStyle(val);
 		var oRes = this.ws.workbook.oStyleManager.setCellStyle(this, newVal);
 		if (History.Is_On() && oRes.oldVal != oRes.newVal) {
@@ -6394,7 +6392,7 @@ StyleManager.prototype =
 				this._getUpdateRange(), new UndoRedoData_IndexSimpleProp(this.index, false, oldStyleName, val));
 
 			// Выставляем стиль
-			var oStyle = this.ws.workbook.CellStyles.getStyleByXfId(oRes.newVal);
+			oStyle = this.ws.workbook.CellStyles.getStyleByXfId(oRes.newVal);
 			if (oStyle.ApplyFont) {
 				this.setFont(oStyle.getFont());
 			}
@@ -6408,6 +6406,7 @@ StyleManager.prototype =
 				this.setNumFormat(oStyle.getNumFormatStr());
 			}
 		}
+		return oStyle;
 	};
 	Col.prototype.setNumFormat = function (val) {
 		var oRes = this.ws.workbook.oStyleManager.setNum(this, new Num({f: val}));
@@ -6794,6 +6793,7 @@ StyleManager.prototype =
 		this._hasChanged = true;
 	};
 	Row.prototype.setCellStyle = function (val) {
+		var oStyle;
 		var newVal = this.ws.workbook.CellStyles._prepareCellStyle(val);
 		var oRes = this.ws.workbook.oStyleManager.setCellStyle(this, newVal);
 		if (History.Is_On() && oRes.oldVal != oRes.newVal) {
@@ -6802,7 +6802,7 @@ StyleManager.prototype =
 				this._getUpdateRange(), new UndoRedoData_IndexSimpleProp(this.index, true, oldStyleName, val));
 
 			// Выставляем стиль
-			var oStyle = this.ws.workbook.CellStyles.getStyleByXfId(oRes.newVal);
+			oStyle = this.ws.workbook.CellStyles.getStyleByXfId(oRes.newVal);
 			if (oStyle.ApplyFont) {
 				this.setFont(oStyle.getFont());
 			}
@@ -6816,6 +6816,7 @@ StyleManager.prototype =
 				this.setNumFormat(oStyle.getNumFormatStr());
 			}
 		}
+		return oStyle;
 	};
 	Row.prototype.setNumFormat = function (val) {
 		var oRes = this.ws.workbook.oStyleManager.setNum(this, new Num({f: val}));
@@ -8366,7 +8367,7 @@ function RangeDataManagerElem(bbox, data)
 
 		this.QueryTable = null;
 		this.tableType = null;
-		
+
 		this.altText = null;
 		this.altTextSummary = null;
 
@@ -8375,7 +8376,7 @@ function RangeDataManagerElem(bbox, data)
 	}
 
 	TablePart.prototype.clone = function () {
-		var i, res = new TablePart(this.handlers);
+		let i, res = new TablePart(this.handlers);
 		res.Ref = this.Ref ? this.Ref.clone() : null;
 		res.HeaderRowCount = this.HeaderRowCount;
 		res.TotalsRowCount = this.TotalsRowCount;
@@ -8415,7 +8416,7 @@ function RangeDataManagerElem(bbox, data)
 		return res;
 	};
 	TablePart.prototype.renameSheetCopy = function (ws, renameParams) {
-		for (var i = 0; i < this.TableColumns.length; ++i) {
+		for (let i = 0; i < this.TableColumns.length; ++i) {
 			this.TableColumns[i].renameSheetCopy(ws, renameParams);
 		}
 	};
@@ -8423,22 +8424,27 @@ function RangeDataManagerElem(bbox, data)
 		if (!opt_cols) {
 			opt_cols = this.TableColumns;
 		}
-		for (var i = 0; i < opt_cols.length; ++i) {
+		for (let i = 0; i < opt_cols.length; ++i) {
 			opt_cols[i].removeDependencies();
 		}
 	};
 	TablePart.prototype.buildDependencies = function () {
-		for (var i = 0; i < this.TableColumns.length; ++i) {
+		for (let i = 0; i < this.TableColumns.length; ++i) {
 			this.TableColumns[i].buildDependencies();
 		}
 	};
 	TablePart.prototype.getAllFormulas = function (formulas) {
-		for (var i = 0; i < this.TableColumns.length; ++i) {
+		for (let i = 0; i < this.TableColumns.length; ++i) {
 			this.TableColumns[i].getAllFormulas(formulas);
 		}
 	};
+	TablePart.prototype.forEachFormula = function (callback) {
+		for (let i = 0; i < this.TableColumns.length; ++i) {
+			this.TableColumns[i].forEachFormula(callback);
+		}
+	};
 	TablePart.prototype.moveRef = function (col, row) {
-		var ref = this.Ref.clone();
+		let ref = this.Ref.clone();
 		ref.setOffset(new AscCommon.CellBase(row || 0, col || 0));
 
 		this.Ref = ref;
@@ -8453,8 +8459,8 @@ function RangeDataManagerElem(bbox, data)
 		}
 	};
 	TablePart.prototype.changeRef = function (col, row, bIsFirst, bIsNotChangeAutoFilter) {
-		var ref = this.Ref.clone();
-		var offset = new AscCommon.CellBase(row || 0, col || 0);
+		let ref = this.Ref.clone();
+		let offset = new AscCommon.CellBase(row || 0, col || 0);
 		if (bIsFirst) {
 			ref.setOffsetFirst(offset);
 		} else {
@@ -8480,20 +8486,20 @@ function RangeDataManagerElem(bbox, data)
 
 		//add table columns
 		if (generateNewTableColumns) {
-			var newTableColumns = [];
-			var intersectionRanges = this.Ref.intersection(range);
+			let newTableColumns = [];
+			let intersectionRanges = this.Ref.intersection(range);
 
 			if (null !== intersectionRanges) {
 				this.removeDependencies();
-				var tableColumn;
-				var headerRow = this.isHeaderRow() ? this.Ref.r1 : this.Ref.r1 - 1;
-				for (var i = range.c1; i <= range.c2; i++) {
+				let tableColumn;
+				let headerRow = this.isHeaderRow() ? this.Ref.r1 : this.Ref.r1 - 1;
+				for (let i = range.c1; i <= range.c2; i++) {
 					if (i >= intersectionRanges.c1 && i <= intersectionRanges.c2) {
-						var tableIndex = i - this.Ref.c1;
+						let tableIndex = i - this.Ref.c1;
 						tableColumn = this.TableColumns[tableIndex];
 					} else {
 						tableColumn = new TableColumn();
-						var cell = autoFilters.worksheet.getCell3(headerRow, i);
+						let cell = autoFilters.worksheet.getCell3(headerRow, i);
 						if (!cell.isNullText()) {
 							tableColumn.Name =
 								autoFilters.checkTableColumnName(newTableColumns.concat(this.TableColumns),
@@ -8504,7 +8510,7 @@ function RangeDataManagerElem(bbox, data)
 					newTableColumns.push(tableColumn);
 				}
 
-				for (var j = 0; j < newTableColumns.length; j++) {
+				for (let j = 0; j < newTableColumns.length; j++) {
 					tableColumn = newTableColumns[j];
 					if (!tableColumn) {
 						tableColumn = newTableColumns[j] = new TableColumn();
@@ -8518,9 +8524,9 @@ function RangeDataManagerElem(bbox, data)
 				this.buildDependencies();
 			}
 		}
-		var wb = autoFilters.worksheet.workbook;
+		let wb = autoFilters.worksheet.workbook;
 		if (this.isTotalsRow() && this.Ref.r2 !== range.r2 && !wb.bUndoChanges && !wb.bRedoChanges) {
-			var rangeTotal = autoFilters.worksheet.getRange3(this.Ref.r2, this.Ref.c1, this.Ref.r2, this.Ref.c2);
+			let rangeTotal = autoFilters.worksheet.getRange3(this.Ref.r2, this.Ref.c1, this.Ref.r2, this.Ref.c2);
 			rangeTotal.cleanText()
 		}
 
@@ -8534,12 +8540,12 @@ function RangeDataManagerElem(bbox, data)
 		this.handlers.trigger("changeRefTablePart", this);
 
 		if (this.AutoFilter) {
-			var filterRange = new Asc.Range(range.c1, range.r1, range.c2, this.isTotalsRow() ? range.r2 - 1 : range.r2);
+			let filterRange = new Asc.Range(range.c1, range.r1, range.c2, this.isTotalsRow() ? range.r2 - 1 : range.r2);
 			this.AutoFilter.changeRefOnRange(filterRange);
 		}
 	};
 	TablePart.prototype.isApplyAutoFilter = function () {
-		var res = false;
+		let res = false;
 
 		if (this.AutoFilter) {
 			res = this.AutoFilter.isApplyAutoFilter();
@@ -8548,7 +8554,7 @@ function RangeDataManagerElem(bbox, data)
 		return res;
 	};
 	TablePart.prototype.isApplySortConditions = function () {
-		var res = false;
+		let res = false;
 
 		if (this.SortState && this.SortState.SortConditions && this.SortState.SortConditions[0]) {
 			res = true;
@@ -8568,7 +8574,7 @@ function RangeDataManagerElem(bbox, data)
 			return;
 		}
 
-		var diff = null, startCol;
+		let diff = null, startCol;
 		if (activeRange.c1 < this.Ref.c1 && activeRange.c2 >= this.Ref.c1 && activeRange.c2 < this.Ref.c2)//until
 		{
 			diff = activeRange.c2 - this.Ref.c1 + 1;
@@ -8584,7 +8590,7 @@ function RangeDataManagerElem(bbox, data)
 		}
 
 		if (diff !== null) {
-			var deleted = this.TableColumns.splice(startCol, diff);
+			let deleted = this.TableColumns.splice(startCol, diff);
 			this.removeDependencies(deleted);
 
 			if (this.QueryTable) {
@@ -8594,14 +8600,14 @@ function RangeDataManagerElem(bbox, data)
 			}
 
 			//todo undo
-			var deletedMap = {};
-			for (var i = 0; i < deleted.length; ++i) {
+			let deletedMap = {};
+			for (let i = 0; i < deleted.length; ++i) {
 				deletedMap[deleted[i].Name] = 1;
 			}
 			this.handlers.trigger("deleteColumnTablePart", this.DisplayName, deletedMap);
 
 			if (this.SortState) {
-				var bIsDeleteSortState = this.SortState.changeColumns(activeRange, true);
+				let bIsDeleteSortState = this.SortState.changeColumns(activeRange, true);
 				if (bIsDeleteSortState) {
 					this.SortState = null;
 				}
@@ -8611,10 +8617,10 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.addTableColumns = function (activeRange, autoFilters) {
-		var newTableColumns = [], num = 0;
+		let newTableColumns = [], num = 0;
 		this.removeDependencies();
-		for (var j = 0; j < this.TableColumns.length;) {
-			var curCol = num + this.Ref.c1;
+		for (let j = 0; j < this.TableColumns.length;) {
+			let curCol = num + this.Ref.c1;
 			if (activeRange.c1 <= curCol && activeRange.c2 >= curCol) {
 				newTableColumns[newTableColumns.length] = new TableColumn();
 			} else {
@@ -8625,8 +8631,8 @@ function RangeDataManagerElem(bbox, data)
 			num++;
 		}
 
-		for (var j = 0; j < newTableColumns.length; j++) {
-			var tableColumn = newTableColumns[j];
+		for (let j = 0; j < newTableColumns.length; j++) {
+			let tableColumn = newTableColumns[j];
 			if (tableColumn.Name === null) {
 				tableColumn.Name = autoFilters._generateColumnName2(newTableColumns);
 			}
@@ -8641,10 +8647,10 @@ function RangeDataManagerElem(bbox, data)
 
 		/*if(this.SortState && this.SortState.SortConditions && this.SortState.SortConditions[0])
 		 {
-		 var SortConditions = this.SortState.SortConditions[0];
+		 let SortConditions = this.SortState.SortConditions[0];
 		 if(activeRange.c1 <= SortConditions.Ref.c1)
 		 {
-		 var offset = activeRange.c2 - activeRange.c1 + 1;
+		 let offset = activeRange.c2 - activeRange.c1 + 1;
 		 SortConditions.Ref.c1 += offset;
 		 SortConditions.Ref.c2 += offset;
 		 }
@@ -8659,7 +8665,7 @@ function RangeDataManagerElem(bbox, data)
 
 	TablePart.prototype.addTableLastColumn = function (activeRange, autoFilters, isAddLastColumn) {
 		this.removeDependencies();
-		var newTableColumns = this.TableColumns;
+		let newTableColumns = this.TableColumns;
 		newTableColumns.push(new TableColumn());
 		newTableColumns[newTableColumns.length - 1].Name = autoFilters._generateColumnName2(newTableColumns);
 
@@ -8680,9 +8686,9 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getTableRangeForFormula = function (objectParam) {
-		var res = null;
-		var startRow = this.HeaderRowCount === null ? this.Ref.r1 + 1 : this.Ref.r1;
-		var endRow = this.TotalsRowCount ? this.Ref.r2 - 1 : this.Ref.r2;
+		let res = null;
+		let startRow = this.HeaderRowCount === null ? this.Ref.r1 + 1 : this.Ref.r1;
+		let endRow = this.TotalsRowCount ? this.Ref.r2 - 1 : this.Ref.r2;
 		switch (objectParam.param) {
 			case FormulaTablePartInfo.all: {
 				res = new Asc.Range(this.Ref.c1, this.Ref.r1, this.Ref.c2, this.Ref.r2);
@@ -8725,8 +8731,8 @@ function RangeDataManagerElem(bbox, data)
 				break;
 			}
 			case FormulaTablePartInfo.columns: {
-				var startCol = this.getTableIndexColumnByName(objectParam.startCol);
-				var endCol = this.getTableIndexColumnByName(objectParam.endCol);
+				let startCol = this.getTableIndexColumnByName(objectParam.startCol);
+				let endCol = this.getTableIndexColumnByName(objectParam.endCol);
 
 				if (startCol === null) {
 					break;
@@ -8750,12 +8756,12 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getTableIndexColumnByName = function (name) {
-		var res = null;
+		let res = null;
 		if (name === null || name === undefined || !this.TableColumns) {
 			return res;
 		}
 
-		for (var i = 0; i < this.TableColumns.length; i++) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			if (name.toLowerCase() === this.TableColumns[i].Name.toLowerCase()) {
 				res = i;
 				break;
@@ -8766,12 +8772,12 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getTableRangeColumnByName = function (name) {
-		var res = null;
+		let res = null;
 		if (name === null || name === undefined || !this.TableColumns) {
 			return res;
 		}
 
-		for (var i = 0; i < this.TableColumns.length; i++) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			if (name.toLowerCase() === this.TableColumns[i].Name.toLowerCase()) {
 				res = new Asc.Range(this.Ref.c1 + i, this.Ref.r1, this.Ref.c1 + i, this.Ref.r2);
 				break;
@@ -8782,12 +8788,12 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getTableNameColumnByIndex = function (index) {
-		var res = null;
+		let res = null;
 		if (index === null || index === undefined || !this.TableColumns) {
 			return res;
 		}
 
-		if(this.TableColumns[index]) {
+		if (this.TableColumns[index]) {
 			res = this.TableColumns[index].Name;
 		}
 
@@ -8795,12 +8801,12 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getIndexByColumnName = function (name) {
-		var res = null;
+		let res = null;
 		if (name === null || name === undefined || !this.TableColumns) {
 			return res;
 		}
 
-		for (var i = 0; i < this.TableColumns.length; i++) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			if (name.toLowerCase() === this.TableColumns[i].Name.toLowerCase()) {
 				res = i;
 				break;
@@ -8826,7 +8832,7 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.isShowButton = function () {
-		var res = false;
+		let res = false;
 
 		if (this.AutoFilter) {
 			res = this.AutoFilter.isShowButton();
@@ -8854,19 +8860,19 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getRangeWithoutHeaderFooter = function () {
-		var startRow = this.HeaderRowCount === null ? this.Ref.r1 + 1 : this.Ref.r1;
-		var endRow = this.TotalsRowCount ? this.Ref.r2 - 1 : this.Ref.r2;
+		let startRow = this.HeaderRowCount === null ? this.Ref.r1 + 1 : this.Ref.r1;
+		let endRow = this.TotalsRowCount ? this.Ref.r2 - 1 : this.Ref.r2;
 
 		return Asc.Range(this.Ref.c1, startRow, this.Ref.c2, endRow);
 	};
 
 	TablePart.prototype.getColumnRange = function (index, withoutHeader, withoutFooter, opt_range) {
-		var tableRange = opt_range ? opt_range : this.Ref;
-		var startRow = tableRange.r1;
+		let tableRange = opt_range ? opt_range : this.Ref;
+		let startRow = tableRange.r1;
 		if (withoutHeader && this.isHeaderRow()) {
 			startRow++;
 		}
-		var endRow = tableRange.r2;
+		let endRow = tableRange.r2;
 		if (withoutFooter && this.isTotalsRow()) {
 			endRow--;
 		}
@@ -8874,7 +8880,7 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.checkTotalRowFormula = function (ws) {
-		for (var i = 0; i < this.TableColumns.length; i++) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			this.TableColumns[i].checkTotalRowFormula(ws, this);
 		}
 	};
@@ -8888,8 +8894,8 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.addAutoFilter = function () {
-		var autoFilter = new AscCommonExcel.AutoFilter();
-		var cloneRef = this.Ref.clone();
+		let autoFilter = new AscCommonExcel.AutoFilter();
+		let cloneRef = this.Ref.clone();
 		if (this.TotalsRowCount) {
 			cloneRef.r2--
 		}
@@ -8908,9 +8914,9 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.getTotalsRowRange = function () {
-		var res = null;
+		let res = null;
 
-		if(this.TotalsRowCount > 0) {
+		if (this.TotalsRowCount > 0) {
 			res = new Asc.Range(this.Ref.c1, this.Ref.r2, this.Ref.c2, this.Ref.r2);
 		}
 
@@ -8926,9 +8932,9 @@ function RangeDataManagerElem(bbox, data)
 	//при открытии в случае если не валидный Ref приходит в объекте AutoFilter
 	//получаем этот Ref из табличного
 	TablePart.prototype.generateAutoFilterRef = function () {
-		var res = null;
-		if(this.Ref) {
-			if(this.isTotalsRow()) {
+		let res = null;
+		if (this.Ref) {
+			if (this.isTotalsRow()) {
 				res = new Asc.Range(this.Ref.c1, this.Ref.r1, this.Ref.c2, this.Ref.r2 - 1);
 			} else {
 				res = new Asc.Range(this.Ref.c1, this.Ref.r1, this.Ref.c2, this.Ref.r2);
@@ -8938,19 +8944,19 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 	TablePart.prototype.syncTotalLabels = function (ws) {
-		if(this.Ref) {
-			if(this.isTotalsRow()) {
-				for(var i = 0; i < this.TableColumns.length; i++) {
-					if(null !== this.TableColumns[i].TotalsRowLabel) {
-						var cell = ws.getCell3(this.Ref.r2, this.Ref.c1 + i);
-						if(cell.isFormula()) {
+		if (this.Ref) {
+			if (this.isTotalsRow()) {
+				for (let i = 0; i < this.TableColumns.length; i++) {
+					if (null !== this.TableColumns[i].TotalsRowLabel) {
+						let cell = ws.getCell3(this.Ref.r2, this.Ref.c1 + i);
+						if (cell.isFormula()) {
 							this.TableColumns[i].TotalsRowLabel = null;
-							if(null === this.TableColumns[i].TotalsRowFunction) {
+							if (null === this.TableColumns[i].TotalsRowFunction) {
 								this.TableColumns[i].TotalsRowFunction = Asc.ETotalsRowFunction.totalrowfunctionCustom;
 							}
 						} else {
-							var val = cell.getValue();
-							if(val !== this.TableColumns[i].TotalsRowLabel) {
+							let val = cell.getValue();
+							if (val !== this.TableColumns[i].TotalsRowLabel) {
 								this.TableColumns[i].TotalsRowLabel = val;
 							}
 						}
@@ -8969,14 +8975,14 @@ function RangeDataManagerElem(bbox, data)
 		//TODO в следующих версиях необходимо реализовать данный функционал в полном объеме
 		this.QueryTable = null;
 		this.tableType = null;
-		for(var i = 0; i < this.TableColumns.length; i++) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			this.TableColumns[i].queryTableFieldId = null;
 			this.TableColumns[i].uniqueName = null;
 		}
 	};
 
-	TablePart.prototype.getColIdByName = function(name) {
-		for (var i = 0; i < this.TableColumns.length; i++) {
+	TablePart.prototype.getColIdByName = function (name) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			if (name === this.TableColumns[i].Name) {
 				return i;
 			}
@@ -8984,13 +8990,192 @@ function RangeDataManagerElem(bbox, data)
 		return null;
 	};
 
-	TablePart.prototype.getIndexTableColumnById = function(id) {
-		for (var i = 0; i < this.TableColumns.length; i++) {
+	TablePart.prototype.getIndexTableColumnById = function (id) {
+		for (let i = 0; i < this.TableColumns.length; i++) {
 			if (id === this.TableColumns[i].id) {
 				return i + 1;
 			}
 		}
 		return null;
+	};
+
+	TablePart.prototype.getSelectionString = function(activeCell, handleSelectionRange) {
+		let getColumnNameRange = function (_start, _end, _needAddParenthesis) {
+			if (_start !== _end) {
+				return "[" + _start + "]" +  ":" +  "[" + _end + "]";
+			} else {
+				return _needAddParenthesis ? "[" + _start + "]" : _start;
+			}
+		};
+
+		if (this.Ref.containsRange(handleSelectionRange)) {
+
+			let argsSeparator = AscCommon.FormulaSeparators.functionArgumentSeparator;
+			let startCol = this.getTableNameColumnByIndex(handleSelectionRange.c1 - this.Ref.c1);
+			let endCol = this.getTableNameColumnByIndex(handleSelectionRange.c2 - this.Ref.c1);
+
+			if (this.Ref.isEqual(handleSelectionRange)) {
+				//Table1[#All]
+				return this.DisplayName + "[" + AscCommon.cStrucTableReservedWords.all + "]";
+			} else if (this.Ref.r1 === handleSelectionRange.r1 && this.Ref.r2 === handleSelectionRange.r2) {
+				//Table1[[#All];[Column1]]
+				//Table1[[#All];[Column1]:[Column2]]
+				return this.DisplayName + "[" + "[" + AscCommon.cStrucTableReservedWords.all + "]" + argsSeparator + getColumnNameRange(startCol, endCol, true) + "]";
+			}
+
+			let dataContains = this._isDataTableContainsRange(handleSelectionRange);
+			if (dataContains && dataContains.partialIntersection) {
+				//check on @
+				if (handleSelectionRange.isOneRow()) {
+					if (activeCell.row === handleSelectionRange.r1) {
+						if (handleSelectionRange.c1 === this.Ref.c1 && handleSelectionRange.c2 === this.Ref.c2) {
+							//all row
+							//Table1[@]
+							return this.DisplayName + "[" + AscCommon.cStrucTableReservedWords.at + "]";
+						} else {
+							//part of row
+							//Table1[@[Column2]:[Column3]]
+							//Table1[@Column1]
+							return this.DisplayName + "[" + AscCommon.cStrucTableReservedWords.at + getColumnNameRange(startCol, endCol) + "]";
+						}
+					}
+				}
+				return null;
+			}
+			let totalContains = this._isTotalRowContainsRange(handleSelectionRange);
+			if (totalContains && totalContains.partialIntersection) {
+				return null;
+			}
+			let headerContains = this._isHeaderRowContainsRange(handleSelectionRange);
+			if (headerContains && headerContains.partialIntersection) {
+				return null;
+			}
+
+
+			//1. only data - Table1
+			//2. only data Table4[[Column1]:[Column2]] / Table4[Column1]
+			if (dataContains && !totalContains && !headerContains) {
+				return dataContains.all ? this.DisplayName : this.DisplayName + "[" + getColumnNameRange(startCol, endCol) + "]";
+			}
+
+			//3. only all totals - Table4[#Totals]
+			//4. only totals - Table4[[#Totals];[Column1]:[Column2]]
+			if (!dataContains && totalContains && !headerContains) {
+				if (totalContains.all) {
+					return this.DisplayName + "[" + AscCommon.cStrucTableReservedWords.totals + "]";
+				} else {
+					return this.DisplayName + "[" + "[" +  AscCommon.cStrucTableReservedWords.totals + "]" + argsSeparator + getColumnNameRange(startCol, endCol, true) + "]";
+				}
+			}
+
+			//5. only all headers - Table4[#Headers]
+			//6. only headers - Table4[[#Headers];[Column1]:[Column2]]
+			if (!dataContains && !totalContains && headerContains) {
+				if (headerContains.all) {
+					return this.DisplayName + "[" + AscCommon.cStrucTableReservedWords.headers + "]";
+				} else {
+					return this.DisplayName + "[" + "[" +  AscCommon.cStrucTableReservedWords.headers + "]" + argsSeparator + getColumnNameRange(startCol, endCol, true) + "]";
+				}
+			}
+
+
+			//hybrid totals/headers/data
+
+			//Table4[[#Data];[#Totals];[Column1]]
+			//Table4[[#Headers];[#Data];[Column1]]
+			//Table4[[#Totals];[Column1]]
+			//Table4[[#Headers];[#Data];[Column1]:[Column2]]
+
+
+			//all hybrid
+			//Table4[[#Data];[#Totals]]
+			if (dataContains || totalContains || headerContains) {
+				let isAll;
+				let res = this.DisplayName + "[";
+				let needDelimiter = false;
+				if (headerContains) {
+					res += "[" + AscCommon.cStrucTableReservedWords.headers + "]";
+					needDelimiter = true;
+					if (headerContains.all) {
+						isAll = true;
+					}
+				}
+				if (dataContains) {
+					if (needDelimiter) {
+						res += argsSeparator;
+					}
+					res += "[" + AscCommon.cStrucTableReservedWords.data + "]";
+					needDelimiter = true;
+					if (dataContains.all) {
+						isAll = true;
+					}
+				}
+				if (totalContains) {
+					if (needDelimiter) {
+						res += argsSeparator;
+					}
+					res += "[" + AscCommon.cStrucTableReservedWords.totals + "]";
+					needDelimiter = true;
+					if (totalContains.all) {
+						isAll = true;
+					}
+				}
+
+				if (!isAll) {
+					res += argsSeparator + getColumnNameRange(startCol, endCol, true);
+				}
+
+				res += "]";
+
+				return res;
+			}
+		}
+		return null;
+	};
+
+	//return {all: bool, partIntersection: bool}/true/false
+	TablePart.prototype._getContainsRange = function(range, tablePartRange, checkPartialIntersection) {
+		let intersection = range.intersection(tablePartRange);
+		if (intersection) {
+			if (tablePartRange.isEqual(intersection)) {
+				return {all: true};
+			} else {
+				if (checkPartialIntersection && (intersection.r1 !== tablePartRange.r1 || intersection.r2 !== tablePartRange.r2)) {
+					return {partialIntersection: true};
+				}
+				return true;
+			}
+		}
+
+		return false;
+	};
+
+	TablePart.prototype._isTotalRowContainsRange = function(range) {
+		if (range && this.isTotalsRow()) {
+			if (this.Ref.containsRange(range)) {
+				let _totalRange = this.getTableRangeForFormula({param: FormulaTablePartInfo.totals});
+				return this._getContainsRange(range, _totalRange);
+			}
+		}
+		return false;
+	};
+
+	TablePart.prototype._isHeaderRowContainsRange = function(range) {
+		if (range && this.isHeaderRow()) {
+			if (this.Ref.containsRange(range)) {
+				let _headerRange = this.getTableRangeForFormula({param: FormulaTablePartInfo.headers});
+				return this._getContainsRange(range, _headerRange);
+			}
+		}
+		return false;
+	};
+
+	TablePart.prototype._isDataTableContainsRange = function(range) {
+		if (this.Ref.containsRange(range)) {
+			let _dataRange = this.getTableRangeForFormula({param: FormulaTablePartInfo.data});
+			return this._getContainsRange(range, _dataRange, true);
+		}
+		return false;
 	};
 
 
@@ -9720,6 +9905,11 @@ function RangeDataManagerElem(bbox, data)
 	TableColumn.prototype.getAllFormulas = function (formulas) {
 		if (this.TotalsRowFormula) {
 			formulas.push(this.TotalsRowFormula);
+		}
+	};
+	TableColumn.prototype.forEachFormula = function (callback) {
+		if (this.TotalsRowFormula) {
+			callback(this.TotalsRowFormula);
 		}
 	};
 	TableColumn.prototype.clone = function () {
@@ -10943,6 +11133,12 @@ function RangeDataManagerElem(bbox, data)
 		var isDigitValue = !isNaN(val);
 		if (!isDigitValue) {
 			val = val.toLowerCase();
+		} else {
+			let isQuotePrefix = cell && cell.getQuotePrefix();
+			if (isQuotePrefix) {
+				isDigitValue = false;
+				val = val.toLowerCase();
+			}
 		}
 
 		var checkComplexSymbols = null, filterVal;
@@ -13221,43 +13417,45 @@ function RangeDataManagerElem(bbox, data)
 		return res;
 	};
 	asc_CPageOptions.prototype.setJson = function (props) {
-		this.gridLines = props["gridLines"];
-		this.headings = props["headings"];
-		this.gridLinesSet = props["gridLinesSet"];
-		this.horizontalCentered = props["horizontalCentered"];
-		this.horizontalCentered = props["horizontalCentered"];
-		this.verticalCentered = props["verticalCentered"];
+		let checkOnNull = function (to, from) {
+			return to != null ? to : from;
+		};
 
-		this.pageMargins.bottom = props["pageMargins"]["bottom"];
-		this.pageMargins.footer = props["pageMargins"]["footer"];
-		this.pageMargins.header = props["pageMargins"]["header"];
-		this.pageMargins.left = props["pageMargins"]["left"];
-		this.pageMargins.right = props["pageMargins"]["right"];
-		this.pageMargins.top = props["pageMargins"]["top"];
-		this.pageMargins.bottom = props["pageMargins"]["bottom"];
+		this.gridLines = checkOnNull(props["gridLines"], this.gridLines);
+		this.headings = checkOnNull(props["headings"], this.headings);
+		this.gridLinesSet = checkOnNull(props["gridLinesSet"], this.gridLinesSet);
+		this.horizontalCentered = checkOnNull(props["horizontalCentered"], this.horizontalCentered);
+		this.verticalCentered = checkOnNull(props["verticalCentered"], this.verticalCentered);
 
-		this.pageSetup.blackAndWhite = props["pageSetup"]["blackAndWhite"];
-		this.pageSetup.cellComments = props["pageSetup"]["cellComments"];
-		this.pageSetup.copies = props["pageSetup"]["copies"];
-		this.pageSetup.draft = props["pageSetup"]["draft"];
-		this.pageSetup.errors = props["pageSetup"]["errors"];
-		this.pageSetup.firstPageNumber = props["pageSetup"]["firstPageNumber"];
-		this.pageSetup.fitToHeight = props["pageSetup"]["fitToHeight"];
-		this.pageSetup.fitToWidth = props["pageSetup"]["fitToWidth"];
-		this.pageSetup.headerFooter = props["pageSetup"]["headerFooter"];
-		this.pageSetup.height = props["pageSetup"]["height"];
-		this.pageSetup.horizontalDpi = props["pageSetup"]["horizontalDpi"];
-		this.pageSetup.orientation = props["pageSetup"]["orientation"];
-		this.pageSetup.pageOrder = props["pageSetup"]["pageOrder"];
-		this.pageSetup.paperUnits = props["pageSetup"]["paperUnits"];
-		this.pageSetup.printArea = props["pageSetup"]["printArea"];
-		this.pageSetup.scale = props["pageSetup"]["scale"];
-		this.pageSetup.useFirstPageNumber = props["pageSetup"]["useFirstPageNumber"];
-		this.pageSetup.usePrinterDefaults = props["pageSetup"]["usePrinterDefaults"];
-		this.pageSetup.verticalDpi = props["pageSetup"]["verticalDpi"];
-		this.pageSetup.width = props["pageSetup"]["width"];
+		this.pageMargins.bottom = checkOnNull(props["pageMargins"]["bottom"], this.pageMargins.bottom);
+		this.pageMargins.footer = checkOnNull(props["pageMargins"]["footer"], this.pageMargins.footer);
+		this.pageMargins.header = checkOnNull(props["pageMargins"]["header"], this.pageMargins.header);
+		this.pageMargins.left = checkOnNull(props["pageMargins"]["left"], this.pageMargins.left);
+		this.pageMargins.right = checkOnNull(props["pageMargins"]["right"], this.pageMargins.right);
+		this.pageMargins.top = checkOnNull(props["pageMargins"]["top"], this.pageMargins.top);
+		this.pageMargins.bottom = checkOnNull(props["pageMargins"]["bottom"], this.pageMargins.bottom);
 
-		this.pageSetup.headerFooter = props["pageSetup"]["headerFooter"];
+		this.pageSetup.blackAndWhite = checkOnNull(props["pageSetup"]["blackAndWhite"], this.pageSetup.blackAndWhite);
+		this.pageSetup.cellComments = checkOnNull(props["pageSetup"]["cellComments"], this.pageSetup.cellComments);
+		this.pageSetup.copies = checkOnNull(props["pageSetup"]["copies"],this.pageSetup.copies);
+		this.pageSetup.draft = checkOnNull(props["pageSetup"]["draft"], this.pageSetup.draft);
+		this.pageSetup.errors = checkOnNull(props["pageSetup"]["errors"],this.pageSetup.errors);
+		this.pageSetup.firstPageNumber = checkOnNull(props["pageSetup"]["firstPageNumber"]< this.pageSetup.firstPageNumber);
+		this.pageSetup.fitToHeight = checkOnNull(props["pageSetup"]["fitToHeight"], this.pageSetup.fitToHeight);
+		this.pageSetup.fitToWidth = checkOnNull(props["pageSetup"]["fitToWidth"], this.pageSetup.fitToWidth);
+		this.pageSetup.height = checkOnNull(props["pageSetup"]["height"], this.pageSetup.height);
+		this.pageSetup.horizontalDpi = checkOnNull(props["pageSetup"]["horizontalDpi"], this.pageSetup.horizontalDpi);
+		this.pageSetup.orientation = checkOnNull(props["pageSetup"]["orientation"], this.pageSetup.orientation);
+		this.pageSetup.pageOrder = checkOnNull(props["pageSetup"]["pageOrder"], this.pageSetup.pageOrder);
+		this.pageSetup.paperUnits = checkOnNull(props["pageSetup"]["paperUnits"], this.pageSetup.paperUnits);
+		this.pageSetup.printArea = checkOnNull(props["pageSetup"]["printArea"], this.pageSetup.printArea);
+		this.pageSetup.scale = checkOnNull(props["pageSetup"]["scale"], this.pageSetup.scale);
+		this.pageSetup.useFirstPageNumber = checkOnNull(props["pageSetup"]["useFirstPageNumber"], this.pageSetup.useFirstPageNumber);
+		this.pageSetup.usePrinterDefaults = checkOnNull(props["pageSetup"]["usePrinterDefaults"], this.pageSetup.usePrinterDefaults);
+		this.pageSetup.verticalDpi = checkOnNull(props["pageSetup"]["verticalDpi"], this.pageSetup.verticalDpi);
+		this.pageSetup.width = checkOnNull(props["pageSetup"]["width"], this.pageSetup.width);
+
+		this.pageSetup.headerFooter = checkOnNull(props["pageSetup"]["headerFooter"], this.pageSetup.headerFooter);
 		/*if (ws.headerFooter) {
 			res["pageSetup"]["headerFooter"] = {
 				"alignWithMargins": ws.headerFooter.alignWithMargins,
@@ -13273,8 +13471,8 @@ function RangeDataManagerElem(bbox, data)
 			};
 		}*/
 
-		this.printTitlesHeight = props["printTitlesHeight"];
-		this.printTitlesWidth = props["printTitlesWidth"];
+		this.printTitlesHeight = checkOnNull(props["printTitlesHeight"], this.printTitlesHeight);
+		this.printTitlesWidth = checkOnNull(props["printTitlesWidth"], this.printTitlesWidth);
 	};
 	asc_CPageOptions.prototype.initPrintTitles = function () {
 		//функция добавлена только для того, чтобы в интерфейс передать текущие заголовки печати, которые хранятся как именованный диапазон
@@ -14217,6 +14415,7 @@ function RangeDataManagerElem(bbox, data)
 		return this.name;
 	};
 
+
 	function CPrintPreviewState(wb) {
 		this.ctx = null;
 		this.pages = null;
@@ -14792,6 +14991,12 @@ function RangeDataManagerElem(bbox, data)
 		for (var i = 0; i < arr.length; i++) {
 			//если есть this.worksheets, если нет - проверить и обработать
 			var sheetName = arr[i].sName;
+			if (this.worksheets[null]) {
+				this.changeSheetName(null, sheetName);
+			}
+			if (!this.worksheets[sheetName]) {
+				this.addSheetName(sheetName, true, true);
+			}
 			if (this.worksheets && this.worksheets[sheetName]) {
 				let wsTo = this.worksheets[sheetName];
 				//меняем лист
@@ -14826,13 +15031,31 @@ function RangeDataManagerElem(bbox, data)
 		//path also can changed
 		var path = oPortalData && oPortalData["path"];
 		if (path && this.Id !== path) {
-			this.setId(path);
+			let isNotUpdate = (AscCommonExcel.importRangeLinksState && AscCommonExcel.importRangeLinksState.notUpdateIdMap[this.Id]) || this.notUpdateId;
+			!isNotUpdate && this.setId(path);
 			isChanged = true;
 		}
 
 		if (isChanged && History.Is_On()) {
 			History.Add(AscCommonExcel.g_oUndoRedoWorkbook, AscCH.historyitem_Workbook_ChangeExternalReference,
 				null, null, new AscCommonExcel.UndoRedoData_FromTo(cloneER, this));
+		}
+	};
+
+	ExternalReference.prototype.changeSheetName = function (from, to) {
+		for (let i in this.SheetNames) {
+			if (this.SheetNames[i] === from) {
+				this.SheetNames[i] = to;
+			}
+		}
+
+		for (let i in this.worksheets) {
+			if (i === from + "") {
+				let _val = this.worksheets[i];
+				_val.sName = to;
+				this.worksheets[to] = _val;
+				delete this.worksheets[from];
+			}
 		}
 	};
 
@@ -14888,12 +15111,21 @@ function RangeDataManagerElem(bbox, data)
 		return this.Id.match(p);
 	};
 
-	ExternalReference.prototype.addSheetName = function (name, generateDefaultStructure) {
+	ExternalReference.prototype.addSheetName = function (name, generateDefaultStructure, addSheetObj) {
 		this.SheetNames.push(name);
 		if (generateDefaultStructure) {
 			var externalSheetDataSet = new ExternalSheetDataSet();
 			externalSheetDataSet.SheetId = this.SheetNames.length - 1;
 			this.SheetDataSet.push(externalSheetDataSet);
+		}
+		if (addSheetObj) {
+			let wb = this.getWb();
+			if (!wb) {
+				wb = new AscCommonExcel.Workbook(null, window["Asc"]["editor"]);
+			}
+			let ws = new AscCommonExcel.Worksheet(wb);
+			ws.sName = name;
+			this.worksheets[name] = ws;
 		}
 	};
 
@@ -15022,7 +15254,7 @@ function RangeDataManagerElem(bbox, data)
 	ExternalReference.prototype.initRows = function (range) {
 
 		var sheetName = range && range.worksheet && range.worksheet.sName;
-		if (sheetName) {
+		if (sheetName !== undefined) {
 			var index = this.getSheetByName(sheetName);
 			if (index != null) {
 				var externalSheetDataSet = this.SheetDataSet[index];
@@ -15121,6 +15353,14 @@ function RangeDataManagerElem(bbox, data)
 	};
 	asc_CExternalReference.prototype.asc_getData = function () {
 		return this.data;
+	};
+	asc_CExternalReference.prototype.asc_getLink = function () {
+		let res = null;
+		//if link on portal(example - importRange function)
+		if (this.externalReference && this.externalReference.isExternalLink()) {
+			res = this.externalReference && this.externalReference.Id;
+		}
+		return res;
 	};
 	asc_CExternalReference.prototype.asc_getSource = function () {
 		let id = this.externalReference && this.externalReference.Id;
@@ -15481,6 +15721,31 @@ function RangeDataManagerElem(bbox, data)
 		return res;
 	};
 
+	ExternalCell.prototype.getFormulaValue = function () {
+		let res;
+
+		switch (this.CellType) {
+			case Asc.ECellTypeType.celltypeStr:
+			case Asc.ECellTypeType.celltypeSharedString:
+			case Asc.ECellTypeType.celltypeInlineStr:
+			case Asc.ECellTypeType.celltypeDate:
+				res = new AscCommonExcel.cString(this.CellValue);
+				break;
+			case Asc.ECellTypeType.celltypeBool:
+				res = new AscCommonExcel.cBool(this.CellValue);
+				break;
+			case Asc.ECellTypeType.celltypeError:
+				res = new AscCommonExcel.cError(this.CellValue);
+				break;
+			case Asc.ECellTypeType.celltypeNumber:
+			default:
+				res = new AscCommonExcel.cNumber(this.CellValue - 0);
+				break;
+		}
+
+		return res;
+	};
+
 	function ExternalDefinedName() {
 		this.Name = null;
 		this.RefersTo = null;
@@ -15529,6 +15794,7 @@ function RangeDataManagerElem(bbox, data)
 
 		return newObj;
 	};
+
 
 	//CellWatch
 	function CCellWatch(ws) {
@@ -16572,6 +16838,987 @@ function RangeDataManagerElem(bbox, data)
 	};
 
 
+	function CTimeline() {
+		this.name = null;
+		this.cache = null;
+		this.caption = null;
+
+		this.scrollPosition = null;
+		this.uid = null;
+
+		this.level = null;
+		this.selectionLevel = null;
+		this.showHeader = null;
+
+		this.showHorizontalScrollbar = null;
+		this.showSelectionLabel = null;
+		this.showTimeLevel = null;
+		this.style = null;
+
+		return this;
+	}
+	CTimeline.prototype.clone = function () {
+		var res = new CTimeline();
+
+		res.name = this.name;
+		res.cache = this.cache;
+		res.caption = this.caption;
+
+		res.scrollPosition = this.scrollPosition;
+		res.uid = this.uid;
+
+		res.level = this.level;
+		res.selectionLevel = this.selectionLevel;
+		res.showHeader = this.showHeader;
+
+		res.showHorizontalScrollbar = this.showHorizontalScrollbar;
+		res.showSelectionLabel = this.showSelectionLabel;
+		res.showTimeLevel = this.showTimeLevel;
+		res.style = this.style;
+
+		return res;
+	};
+
+	function CTimelineCacheDefinition() {
+		this.name = null;
+		this.sourceName = null;
+		this.uid = null;
+
+		this.pivotTables = null;
+		this.state = null;
+		this.pivotFilter = null;
+
+		return this;
+	}
+	CTimelineCacheDefinition.prototype.clone = function () {
+		var res = new CTimelineCacheDefinition();
+
+		res.name = this.name;
+		res.sourceName = this.sourceName;
+		res.uid = this.uid;
+
+		res.pivotTables = this.pivotTables;
+		res.state = this.state;
+		res.pivotFilter = this.pivotFilter;
+
+		return res;
+	};
+	CTimelineCacheDefinition.prototype.initPostOpen = function (tableIds, sheetIds) {
+		if (this.pivotTables) {
+			this.pivotTables.forEach(function(elem){
+				elem.initPostOpen(tableIds, sheetIds);
+			});
+		}
+	};
+
+	CTimelineCacheDefinition.prototype.isCachePivotTable = function (sheetId, pivotName) {
+		if (this.pivotTables) {
+			for (let i = 0; i < this.pivotTables.length; i++) {
+				if (this.pivotTables[i].isCachePivotTable(sheetId, pivotName)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+
+
+	function CTimelineCachePivotTable() {
+		this.name = null;
+		this.tabId = null;
+	}
+	CTimelineCachePivotTable.prototype.clone = function () {
+		var res = new CTimelineCachePivotTable();
+
+		res.name = this.name;
+		res.tabId = this.tabId;
+
+		return res;
+	};
+	CTimelineCachePivotTable.prototype.initPostOpen = function (tableIds, sheetIds) {
+		var ws = null;
+		if (null != this.tabId) {
+			ws = sheetIds[this.tabId];
+			if (ws) {
+				this.tabId = ws.getId();
+			}
+		}
+		return ws;
+	};
+	CTimelineCachePivotTable.prototype.isCachePivotTable = function (sheetId, pivotName) {
+		return this.tabId === sheetId && this.name === pivotName;
+	};
+
+
+	function CTimelineState() {
+		this.name = null;
+		this.filterState = null;
+
+		this.pivotCacheId = null;
+		this.minimalRefreshVersion = null;
+
+		this.lastRefreshVersion = null;
+		this.filterType = null;
+
+		this.selection = null;
+		this.bounds = null;
+	}
+	CTimelineState.prototype.clone = function () {
+		var res = new CTimelineState();
+
+		res.name = this.name;
+		res.filterState = this.filterState;
+
+		res.pivotCacheId = this.pivotCacheId;
+		res.minimalRefreshVersion = this.minimalRefreshVersion;
+
+		res.lastRefreshVersion = this.lastRefreshVersion;
+		res.filterType = this.filterType;
+
+		res.selection = this.selection && this.selection.clone();
+		res.bounds = this.bounds && this.bounds.clone();
+
+		return res;
+	};
+
+	function CTimelineRange() {
+		this.startDate = null;
+		this.endDate = null;
+	}
+	CTimelineRange.prototype.clone = function () {
+		var res = new CTimelineRange();
+
+		res.startDate = this.startDate;
+		res.endDate = this.endDate;
+
+		return res;
+	};
+
+	function CTimelineStyles() {
+		this.defaultTimelineStyle = null;
+		this.timelineStyles = null;
+	}
+	CTimelineStyles.prototype.clone = function () {
+		var res = new CTimelineRange();
+
+		res.defaultTimelineStyle = this.defaultTimelineStyle;
+		if (this.timelineStyles) {
+			res.timelineStyles = [];
+			for (let i = 0; i < this.timelineStyles.length; i++) {
+				res.timelineStyles.push(this.timelineStyles[i].clone());
+			}
+		}
+
+		return res;
+	};
+
+	function CTimelineStyle() {
+		this.name = null;
+		this.timelineStyleElements = null;
+	}
+	CTimelineStyle.prototype.clone = function () {
+		var res = new CTimelineRange();
+
+		res.name = this.name;
+		if (this.timelineStyleElements) {
+			res.timelineStyleElements = [];
+			for (let i = 0; i < this.timelineStyleElements.length; i++) {
+				res.timelineStyleElements.push(this.timelineStyleElements[i].clone());
+			}
+		}
+
+		return res;
+	};
+
+	function CTimelineStyleElement() {
+		this.type = null;
+		this.dxfId = null;
+	}
+	CTimelineStyleElement.prototype.clone = function () {
+		var res = new CTimelineRange();
+
+		res.type = this.type;
+		res.dxfId = this.dxfId;
+
+		return res;
+	};
+
+	function CTimelinePivotFilter() {
+		this.name = null;
+		this.description = null;
+		this.useWholeDay = null;
+		this.id = null;
+		this.fld = null;
+
+		this.autoFilter = null;
+	}
+	CTimelinePivotFilter.prototype.clone = function () {
+		var res = new CTimelinePivotFilter();
+
+		res.name = this.name;
+		res.description = this.description;
+		res.useWholeDay = this.name;
+		res.id = this.description;
+		res.fld = this.name;
+
+		res.autoFilter = this.autoFilter && this.autoFilter.clone();
+
+		return res;
+	};
+
+
+	function CCustomFunctionEngine(wb) {
+		this.wb = wb;
+		this.funcsMapInfo = {};
+
+		this.localiztionMap = {};//{en: {"SUM": "SUMMA"}{"SUMMA": "SUM"}}
+
+		this.prefixName = "";
+		this.activeLocale = null;
+
+		this.needRecalculate = null;
+	}
+	CCustomFunctionEngine.prototype.add = function (func, options) {
+		//options ->
+		/*{"params":
+		[
+			{
+				"defaultValue": ""
+				"description": "First number. *"
+				"name": "first"
+				"isOptional": false
+				"parentName": ""
+				"type": "number"
+			},
+			{
+				"defaultValue": ""
+				"description": "Second number. *"
+				"name": "second"
+				"isOptional": true
+				"parentName": ""
+				"type": "string"
+			}
+		]
+		*/
+
+		this._add(func, options);
+		this.needRecalculate = true;
+	};
+
+	CCustomFunctionEngine.prototype._add = function (func, options) {
+		let oThis = this;
+		let funcName = func.name.toUpperCase();
+		if (funcName.length === 0) {
+			console.log("REGISTRAION_ERROR_INVALID_FUNCTION_NAME");
+			return;
+		}
+
+
+		//prefix add for separate main function from custom function
+		//!!!_xldudf
+		funcName = this.prefixName + funcName;
+
+		let oFormulaList = AscCommonExcel.cFormulaFunction;
+		if (!this.funcsMapInfo[funcName] && oFormulaList[funcName]) {
+			console.log("REGISTRAION_ERROR_CONFLICTED_FUNCTION_NAME");
+		}
+
+		if (this.funcsMapInfo[funcName]) {
+			this.remove(funcName);
+		}
+
+		let params = options && options.params;
+		let argsInfo = this._getParamsInfo(func, params);
+
+		let argumentsType = [];
+		let argumentsMin = 0;
+		let argumentsMax = argsInfo ? argsInfo.length : 0;
+		if (argsInfo) {
+			let optionalCount = 0;
+			for (let i = 0; i < argsInfo.length; i++) {
+				argumentsType.push(this.getTypeByString(argsInfo[i].type));
+				if (argsInfo[i].isOptional) {
+					optionalCount++;
+				} else {
+					optionalCount = 0;
+				}
+			}
+			argumentsMin = argsInfo.length - optionalCount;
+		}
+
+
+		let argsFuncLength = func.length;
+		if (argsFuncLength > argumentsMax) {
+			console.log("REGISTRAION_ERROR_INVALID_FUNCTION_ARGUMENTS_COUNT");
+			return;
+		}
+
+		/**
+		 * @constructor
+		 * @extends {AscCommonExcel.cBaseFunction}
+		 */
+		function newFunc() {
+		}
+
+		//***array-formula***
+		newFunc.prototype = Object.create(AscCommonExcel.cBaseFunction.prototype);
+		newFunc.prototype.constructor = newFunc;
+		newFunc.prototype.name = funcName;
+		//newFunc.prototype.argumentsMin = argumentsMin;
+		//newFunc.prototype.argumentsMax = argumentsMax;
+		//argumentsType - other arguments type, need convert
+		newFunc.prototype.argumentsType = argumentsType;
+		newFunc.prototype.Calculate = function (arg) {
+			try {
+
+				if (arg.length < argumentsMin || arg.length > argumentsMax) {
+					return new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				}
+
+				for (let i in arg) {
+					if (arg[i] && arg[i].type === AscCommonExcel.cElementType.error) {
+						return arg[i];
+					}
+				}
+
+				//prepare arguments
+				let args = [];
+				for (let i = 0; i < argsInfo.length; i++) {
+					let type = argsInfo[i].type;
+					let defaultValue = argsInfo[i].defaultValue;
+
+					if (!arg[i] && !defaultValue) {
+						continue;
+					}
+
+					if (arg[i] && arg[i].type === AscCommonExcel.cElementType.error && type === AscCommonExcel.cElementType.error) {
+						args.push(arg[i].toString());
+					} else {
+						if (arg[i] && arg[i].type === AscCommonExcel.cElementType.error) {
+							return arg[i];
+						}
+
+						let elem = oThis.prepareInputArg(arg[i], type, defaultValue);
+						if (elem && elem.type === AscCommonExcel.cElementType.error) {
+							return elem;
+						}
+
+						args.push(elem);
+					}
+				}
+
+				let res = func.apply(this, args);
+
+				//prepare result
+				let returnInfo = options.returnInfo;
+				return oThis.prepareResult(res, returnInfo.type);
+			} catch (e) {
+				console.log("ERROR CUSTOM FUNCTION CALCULATE");
+				return  new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+			}
+		};
+
+		this.addToFunctionsList(newFunc, options);
+	};
+
+	CCustomFunctionEngine.prototype.remove = function (sName) {
+		sName = sName.toUpperCase();
+
+		let isFound = false;
+		if (AscCommonExcel.cFormulaFunctionGroup["Custom"]) {
+			let aCustomFunc = AscCommonExcel.cFormulaFunctionGroup["Custom"];
+			for (let i in aCustomFunc) {
+				if (aCustomFunc[i] && aCustomFunc[i].prototype && aCustomFunc[i].prototype.name === sName) {
+					aCustomFunc.splice(i - 0, 1);
+					isFound = true;
+					break;
+				}
+			}
+		}
+
+		if (isFound) {
+			AscCommonExcel.removeCustomFunction(sName);
+			this.wb.initFormulasList && this.wb.initFormulasList();
+			if (this.wb && this.wb.Api) {
+				this.wb.Api.formulasList = AscCommonExcel.getFormulasInfo();
+			}
+			this.removeInfo(sName);
+
+			this.wb.handlers && this.wb.handlers.trigger("asc_onRemoveCustomFunction");
+			return true;
+		}
+		return false;
+	};
+
+	CCustomFunctionEngine.prototype.clear = function () {
+		if (AscCommonExcel.cFormulaFunctionGroup["Custom"] && AscCommonExcel.cFormulaFunctionGroup["Custom"].length) {
+			let aCustomFunc = AscCommonExcel.cFormulaFunctionGroup["Custom"];
+			for (let i = 0; i < aCustomFunc.length; i++) {
+				let sName = aCustomFunc[i].prototype.name;
+				AscCommonExcel.removeCustomFunction(sName);
+			}
+			AscCommonExcel.cFormulaFunctionGroup["Custom"] = [];
+
+			this.wb.initFormulasList && this.wb.initFormulasList();
+			if (this.wb && this.wb.Api) {
+				this.wb.Api.formulasList = AscCommonExcel.getFormulasInfo();
+			}
+			this.clearInfo();
+
+			this.wb.handlers && this.wb.handlers.trigger("asc_onRemoveCustomFunction");
+
+			return true;
+		}
+
+		return false;
+	};
+
+	CCustomFunctionEngine.prototype.setActiveLocale = function (sLocale) {
+		this.activeLocale = sLocale;
+	};
+
+	CCustomFunctionEngine.prototype._getParamsInfo = function (func, params) {
+		let aArgs = this._getArgsByFunc(func);
+		let argsInfo = [];
+		if (!aArgs) {
+			return argsInfo;
+		}
+		
+		let paramsMap = {};
+		if (params) {
+			for (let i in params) {
+				paramsMap[params[i].name] = params[i];
+			}
+		}
+		for (let i = 0; i < aArgs.length; i++) {
+			let type = "any";
+			let curParams = paramsMap && paramsMap[aArgs[i]];
+			let _isOptional = false;
+			let _defaultValue = null;
+			if (curParams) {
+				if (curParams.type) {
+					type = curParams.type;
+				}
+				_isOptional = curParams.isOptional;
+				_defaultValue = curParams.defaultValue;
+			}
+			argsInfo.push({type: type, isOptional: _isOptional, defaultValue: _defaultValue});
+		}
+		return argsInfo;
+	};
+
+	CCustomFunctionEngine.prototype._getArgsByFunc = function (func) {
+		const funcCommentsRegExp = /((\/\/.*$)|(\/\*[\s\S]*?\*\/))/mg;
+		const funcArgsNamesRegExp = /([^\s,]+)/g;
+		let sFunc = func.toString().replace(funcCommentsRegExp, '');
+		return sFunc.slice(sFunc.indexOf('(') + 1, sFunc.indexOf(')')).match(funcArgsNamesRegExp);
+	};
+
+	CCustomFunctionEngine.prototype.addToFunctionsList = function (newFunc, params) {
+		AscCommonExcel.cFormulaFunctionGroup['Custom'] = AscCommonExcel.cFormulaFunctionGroup['Custom'] || [];
+
+		let translations = params.nameLocale;
+		let description = params.description;
+		let args = params.params;
+
+		let funcName = newFunc.prototype.name;
+
+		//already added function
+		let isNewFunc = false;
+		if (this.funcsMapInfo[funcName]) {
+			//reload translations
+			this.pushTranslations(funcName, translations);
+			//reload description
+			this.funcsMapInfo[funcName].description = description;
+
+			//reload args info
+			this.funcsMapInfo[funcName].args = [];
+			if (args) {
+				for (let i = 0; i < args.length; i++) {
+					this.funcsMapInfo[funcName].args.push(new CCustomFunctionArgInfo(args[i].name, args[i].isOptional));
+				}
+			}
+
+			let customFunctionList = AscCommonExcel.cFormulaFunctionGroup["Custom"];
+			for (let i in customFunctionList) {
+				if (customFunctionList[i] && customFunctionList[i].prototype.name === funcName) {
+					customFunctionList.splice(i - 0, 1);
+					break;
+				}
+			}
+		} else {
+			this.funcsMapInfo[funcName] = new CCustomFunctionInfo(funcName);
+			this.pushTranslations(funcName, translations);
+			this.funcsMapInfo[funcName].description = description;
+
+			if (args) {
+				for (let i = 0; i < args.length; i++) {
+					if (!this.funcsMapInfo[funcName].args) {
+						this.funcsMapInfo[funcName].args = [];
+					}
+					this.funcsMapInfo[funcName].args.push(new CCustomFunctionArgInfo(args[i].name, args[i].isOptional));
+				}
+			}
+			isNewFunc = true;
+		}
+
+		//add or reload
+		if (AscCommonExcel.cFormulaFunctionToLocale && ((!this.funcsMapInfo[funcName].addLocalization
+			&& !AscCommonExcel.cFormulaFunctionToLocale[funcName]) || this.funcsMapInfo[funcName].addLocalization)) {
+
+			//need get from interface short formula lang("en", ...)
+			let localName = this.getTranslationName(funcName, this.activeLocale);
+			AscCommonExcel.cFormulaFunctionLocalized[localName] = newFunc;
+			AscCommonExcel.cFormulaFunctionToLocale[funcName] = localName;
+
+			this.funcsMapInfo[funcName].addLocalization = true;
+			this.funcsMapInfo[funcName].description = description;
+		}
+
+		AscCommonExcel.cFormulaFunctionGroup["Custom"].push(newFunc);
+		AscCommonExcel.addNewFunction(newFunc);
+		this.wb.initFormulasList && this.wb.initFormulasList();
+		if (this.wb && this.wb.Api) {
+			this.wb.Api.formulasList = AscCommonExcel.getFormulasInfo();
+		}
+		if (isNewFunc) {
+			this.wb.handlers && this.wb.handlers.trigger("asc_onAddCustomFunction");
+		}
+	};
+
+	CCustomFunctionEngine.prototype.pushTranslations = function (funcName, translations) {
+		for (let i in translations) {
+			if (!translations[i]) {
+				continue;
+			}
+			if (!this.localiztionMap[i]) {
+				this.localiztionMap[i] = {};
+			}
+			if (!this.localiztionMap[i].fullNameToLocalName) {
+				this.localiztionMap[i].fullNameToLocalName = {};
+			}
+			if (!this.localiztionMap[i].localNameToFullName) {
+				this.localiztionMap[i].localNameToFullName = {};
+			}
+
+
+			this.localiztionMap[i].fullNameToLocalName[funcName] = (translations[i] + "").toUpperCase();
+			this.localiztionMap[i].localNameToFullName[translations[i]] = funcName;
+		}
+	};
+
+	CCustomFunctionEngine.prototype.getTypeByString = function (_type) {
+		let res =  AscCommonExcel.cElementType.number;
+		switch (_type) {
+			case "number":
+				res = AscCommonExcel.cElementType.number;
+				break;
+			case "string":
+				res = AscCommonExcel.cElementType.string;
+				break;
+			case "boolean":
+				res = AscCommonExcel.cElementType.bool;
+				break;
+			default:
+				res = AscCommonExcel.cElementType.any;
+				break;
+		}
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype.prepareInputArg = function (_elem, _type, _defaultValue) {
+		if (!_elem) {
+			return _defaultValue;
+		}
+
+		let res = null;
+		switch (_type) {
+			case "number":
+				if (_elem.type === AscCommonExcel.cElementType.error) {
+					return _elem;
+				}
+				if (_elem.type === AscCommonExcel.cElementType.array || _elem.type === AscCommonExcel.cElementType.cellsRange || _elem.type === AscCommonExcel.cElementType.cellsRange3D) {
+					//TODO ms -> calc error
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = _elem.tocNumber();
+					if (res.type !== AscCommonExcel.cElementType.error) {
+						res = res.toNumber();
+					} else {
+						res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+					}
+				}
+				break;
+			case "string":
+				if (_elem.type === AscCommonExcel.cElementType.array || _elem.type === AscCommonExcel.cElementType.cellsRange || _elem.type === AscCommonExcel.cElementType.cellsRange3D) {
+					//TODO ms -> calc error
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = _elem.tocString();
+					if (res.type !== AscCommonExcel.cElementType.error) {
+						res = res.toString();
+					} else {
+						res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+					}
+				}
+				break;
+			case "boolean":
+				if (_elem.type === AscCommonExcel.cElementType.array || _elem.type === AscCommonExcel.cElementType.cellsRange || _elem.type === AscCommonExcel.cElementType.cellsRange3D) {
+					//TODO ms -> calc error
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = _elem.tocBool();
+					if (res.type !== AscCommonExcel.cElementType.error && res.toBool) {
+						res = res.toBool();
+					} else {
+						res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+					}
+				}
+				break;
+			case "any":
+				if (_elem.type === AscCommonExcel.cElementType.array || _elem.type === AscCommonExcel.cElementType.cellsRange || _elem.type === AscCommonExcel.cElementType.cellsRange3D) {
+					//TODO ms -> calc error
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					if (_elem.type === AscCommonExcel.cElementType.cell || _elem.type === AscCommonExcel.cElementType.cell3D) {
+						_elem = _elem.getValue();
+					}
+					res = _elem.getValue();
+				}
+				break;
+			case "number[][]":
+				res = _elem.toArray(true, true, function (elem) {
+					return elem.tocNumber();
+				});
+				break;
+			case "string[][]":
+				res = _elem.toArray(true, true, function (elem) {
+					return elem.tocString();
+				});
+				break;
+			case "boolean[][]":
+				res = _elem.toArray(true, true, function (arrayElem) {
+					let _res = arrayElem.tocBool();
+					if (_res.type !== AscCommonExcel.cElementType.error && _res.toBool) {
+						return _res;
+					} else {
+						return new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+					}
+				});
+				break;
+			case "any[][]":
+				res = _elem.toArray(true, true);
+				break;
+		}
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype.getFunc = function (name, bLocale) {
+		if (bLocale) {
+			let activeLocale = this.activeLocale;
+			if (this.localiztionMap[activeLocale]) {
+				if (this.localiztionMap[activeLocale].localNameToFullName[name]) {
+					name = this.localiztionMap[activeLocale].localNameToFullName[name];
+				}
+			}
+		}
+
+		return this.funcsMapInfo[name];
+	};
+	
+	CCustomFunctionEngine.prototype.getDescription = function (name, ignoreLocale) {
+		let res = null;
+
+		let activeLocale = this.activeLocale;
+		if (!ignoreLocale && this.localiztionMap[activeLocale]) {
+			if (this.localiztionMap[activeLocale].localNameToFullName[name]) {
+				name = this.localiztionMap[activeLocale].localNameToFullName[name];
+			}
+		}
+
+		if (this.funcsMapInfo[name]) {
+			res = this.funcsMapInfo[name].description;
+		}
+
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype.getTranslationName = function (name, lang) {
+		let res = name;
+		if (this.localiztionMap[lang]) {
+			let localName = this.localiztionMap[lang].fullNameToLocalName[name];
+			if (localName) {
+				res = this.localiztionMap[lang].fullNameToLocalName[name];
+			}
+		}
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype.prepareResult = function (val, _type) {
+		let res = null;
+		switch (_type) {
+			case "number":
+				if (typeof val === "object") {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._toNumber(val);
+				}
+				break;
+			case "string":
+				if (typeof val === "object") {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._toString(val);
+				}
+				break;
+			case "boolean":
+				if (typeof val === "object") {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._toBool(val);
+				}
+				break;
+			case "any":
+				if (typeof val === "object") {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._toAny(val);
+				}
+				break;
+			case "number[][]":
+				if (Asc.typeOf(val) !== "array" || !val[0]) {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._tocArray(val, AscCommonExcel.cElementType.number, true);
+				}
+				break;
+			case "string[][]":
+				if (Asc.typeOf(val) !== "array" || !val[0]) {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._tocArray(val, AscCommonExcel.cElementType.string, true);
+				}
+				break;
+			case "boolean[][]":
+				if (Asc.typeOf(val) !== "array" || !val[0]) {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._tocArray(val, AscCommonExcel.cElementType.bool, true);
+				}
+				break;
+			case "any[][]":
+				if (Asc.typeOf(val) !== "array" || !val[0]) {
+					res = new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				} else {
+					res = this._tocArray(val, null, true);
+				}
+				break;
+		}
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype._toNumber = function (val) {
+		let res;
+		if (val === true || val === false) {
+			res = new AscCommonExcel.cBool(val);
+		} else {
+			res = typeof val === "string" ? new AscCommonExcel.cString(val) : new AscCommonExcel.cNumber(val);
+		}
+		return res;
+	};
+
+	CCustomFunctionEngine.prototype._toString = function (val) {
+		return new AscCommonExcel.cString(val + "");
+	};
+
+	CCustomFunctionEngine.prototype._toBool = function (val) {
+		if (this._checkBool(val)) {
+			return new AscCommonExcel.cBool(val);
+		} else {
+			if (Number.isFinite(val)) {
+				return new AscCommonExcel.cNumber(val);
+			} else {
+				return new AscCommonExcel.cString(val);
+			}
+		}
+	};
+
+	CCustomFunctionEngine.prototype._toAny = function (val) {
+		if (this._checkBool(val)) {
+			return new AscCommonExcel.cBool(val);
+		} else {
+			if (Number.isFinite(val)) {
+				return new AscCommonExcel.cNumber(val);
+			} else {
+				return new AscCommonExcel.cString(val);
+			}
+		}
+	};
+
+	CCustomFunctionEngine.prototype._tocArray = function (array, resType, checkOnError) {
+		var oArray = [], _res = new AscCommonExcel.cArray();
+
+		for (var i = 0; i < array.length; i++) {
+			for (var j = 0; j < array[i].length; j++) {
+				if (typeof array[i][j] === "object") {
+					return new AscCommonExcel.cError(AscCommonExcel.cErrorType.wrong_value_type);
+				}
+
+				let isError = checkOnError && this._checkOnErrorByString(array[i][j]);
+				if (isError) {
+					return isError;
+				}
+				if (!oArray[i]) {
+					oArray[i] = [];
+				}
+
+				switch (resType) {
+					case AscCommonExcel.cElementType.number:
+						oArray[i][j] = this._toNumber((array[i][j]));
+						break;
+					case AscCommonExcel.cElementType.string:
+						oArray[i][j] = this._toString((array[i][j]));
+						break;
+					case AscCommonExcel.cElementType.bool:
+						oArray[i][j] = this._toBool((array[i][j]));
+						break;
+					case null://any
+						oArray[i][j] = this._toAny((array[i][j]));
+						break;
+				}
+			}
+		}
+
+		_res.fillFromArray(oArray);
+
+		return _res;
+	};
+
+	CCustomFunctionEngine.prototype._checkBool = function (val) {
+		if (val === true || val === false) {
+			return true;
+		} else {
+			val = val.toLowerCase && val.toLowerCase();
+			if (val === "true" || val === "false") {
+				return true;
+			}
+		}
+		return false;
+	};
+
+	CCustomFunctionEngine.prototype._checkOnErrorByString = function (_str) {
+		for (let i in window["AscCommon"].cErrorOrigin) {
+			if (window["AscCommon"].cErrorOrigin[i] === _str) {
+				return new AscCommonExcel.cError(_str);
+			}
+		}
+		for (let i in window["AscCommon"].cErrorLocal) {
+			if (window["AscCommon"].cErrorLocal[i] === _str) {
+				return new AscCommonExcel.cError(_str);
+			}
+		}
+		return false;
+	};
+
+	CCustomFunctionEngine.prototype.removeInfo = function (sName) {
+		if (this.funcsMapInfo[sName]) {
+			delete this.funcsMapInfo[sName];
+		}
+		this.removeLocalizationInfo(sName);
+	};
+
+	CCustomFunctionEngine.prototype.removeLocalizationInfo = function (sName) {
+		for (let i in this.localiztionMap) {
+			if (this.localiztionMap.hasOwnProperty(i)) {
+				if (this.localiztionMap[i].fullNameToLocalName && this.localiztionMap[i].fullNameToLocalName[sName]) {
+					delete this.localiztionMap[i].fullNameToLocalName[sName];
+				}
+
+				if (this.localiztionMap[i].localNameToFullName) {
+					for (let j in this.localiztionMap[i].localNameToFullName) {
+						if (this.localiztionMap[i].localNameToFullName.hasOwnProperty(j)) {
+							if (this.localiztionMap[i].localNameToFullName[j] === sName) {
+								delete this.localiztionMap[i].localNameToFullName[j];
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+	};
+
+	CCustomFunctionEngine.prototype.clearInfo = function () {
+		this.funcsMapInfo = {};
+		this.localiztionMap = {};
+	};
+
+	function CCustomFunctionInfo(name) {
+		this.name = name;
+		this.description = null;
+
+		this.args = null;
+
+		this.addLocalization = null;
+	}
+	CCustomFunctionInfo.prototype.asc_getDescription = function () {
+		return this.description;
+	};
+	CCustomFunctionInfo.prototype.asc_getArg = function (num) {
+		if (num == null) {
+			return this.args;
+		}
+		if (this.args && this.args[num]) {
+			return this.args[num];
+		}
+		return null;
+	};
+
+	function CCustomFunctionArgInfo(sName, bOptional) {
+		this.sName = sName;
+		this.bOptional = bOptional;
+	}
+	CCustomFunctionArgInfo.prototype.asc_getName = function () {
+		return this.sName;
+	};
+	CCustomFunctionArgInfo.prototype.asc_getIsOptional = function () {
+		return this.bOptional;
+	};
+
+	function CWorkbookInfo(name, id) {
+		this.name = name;
+		this.id = id;
+
+		this.sheets = null;
+	}
+	CWorkbookInfo.prototype.addSheet = function (name, index) {
+		if (!this.sheets) {
+			this.sheets = [];
+		}
+		let newObj = new CWorksheetInfo(name, index);
+		this.sheets.push(newObj);
+	};
+	CWorkbookInfo.prototype.asc_getName = function () {
+		return this.name;
+	};
+	CWorkbookInfo.prototype.asc_getId = function () {
+		return this.id;
+	};
+	CWorkbookInfo.prototype.asc_getSheets = function () {
+		return this.sheets;
+	};
+
+	function CWorksheetInfo(name, index) {
+		this.name = name;
+		this.index = index;
+	}
+	CWorksheetInfo.prototype.asc_getName = function () {
+		return this.name;
+	};
+	CWorksheetInfo.prototype.asc_getIndex = function () {
+		return this.index;
+	};
+
 	//----------------------------------------------------------export----------------------------------------------------
 	var prot;
 	window['Asc'] = window['Asc'] || {};
@@ -16949,6 +18196,7 @@ function RangeDataManagerElem(bbox, data)
 	prot["asc_getId"] = prot.asc_getId;
 	prot["asc_isExternalLink"] = prot.isExternalLink;
 	prot["asc_getPath"] = prot.asc_getPath;
+	prot["asc_getLink"] = prot.asc_getLink;
 
 
 
@@ -17074,6 +18322,42 @@ function RangeDataManagerElem(bbox, data)
 	prot["asc_setContextMenuAllowedProps"] = prot.asc_setContextMenuAllowedProps;
 	prot["asc_setContextMenuChosenProperty"] = prot.asc_setContextMenuChosenProperty;
 	prot["asc_setToolbarMenuAllowedProps"] = prot.asc_setToolbarMenuAllowedProps;
+
+
+	window["AscCommonExcel"].CTimeline = CTimeline;
+	window["AscCommonExcel"].CTimelineCacheDefinition = CTimelineCacheDefinition;
+	window["AscCommonExcel"].CTimelineCachePivotTable = CTimelineCachePivotTable;
+	window["AscCommonExcel"].CTimelineState = CTimelineState;
+	window["AscCommonExcel"].CTimelineRange = CTimelineRange;
+	window["AscCommonExcel"].CTimelineStyles = CTimelineStyles;
+	window["AscCommonExcel"].CTimelineStyle = CTimelineStyle;
+	window["AscCommonExcel"].CTimelineStyleElement = CTimelineStyleElement;
+	window["AscCommonExcel"].CTimelinePivotFilter = CTimelinePivotFilter;
+
+	window["AscCommonExcel"].CCustomFunctionEngine = CCustomFunctionEngine;
+
+	window["AscCommonExcel"].CCustomFunctionInfo = CCustomFunctionInfo;
+	prot = CCustomFunctionInfo.prototype;
+	prot["asc_getDescription"] = prot.asc_getDescription;
+	prot["asc_getArg"] = prot.asc_getArg;
+
+	window["AscCommonExcel"].CCustomFunctionArgInfo = CCustomFunctionArgInfo;
+	prot = CCustomFunctionArgInfo.prototype;
+	prot["asc_getName"] = prot.asc_getName;
+	prot["asc_getIsOptional"] = prot.asc_getIsOptional;
+
+
+	window["AscCommonExcel"].CWorkbookInfo = CWorkbookInfo;
+	prot = CWorkbookInfo.prototype;
+	prot["asc_getName"] = prot.asc_getName;
+	prot["asc_getId"] = prot.asc_getId;
+	prot["asc_getSheets"] = prot.asc_getSheets;
+
+	window["AscCommonExcel"].CWorksheetInfo = CWorksheetInfo;
+	prot = CWorksheetInfo.prototype;
+	prot["asc_getName"] = prot.asc_getName;
+	prot["asc_getIndex"] = prot.asc_getIndex;
+
 
 
 })(window);

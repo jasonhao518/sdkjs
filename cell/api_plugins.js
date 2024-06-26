@@ -118,4 +118,111 @@
 
 	};
 
+	/**
+	 * Returns all the comments from the document.
+	 * @memberof Api
+	 * @typeofeditors ["CSE"]
+	 * @alias GetAllComments
+	 * @returns {comment[]} - An array of comment objects containing the comment data.
+	 * @since 8.1.0
+	 */
+	Api.prototype["pluginMethod_GetAllComments"] = function()
+	{
+		const arrResult = [];
+
+		for (let index = 0; index < this.wbModel.aComments.length; index++) {
+			const oComment = this.wbModel.aComments[index];
+			arrResult.push({"Id" : oComment.asc_getId(), "Data" : oComment.ConvertToSimpleObject()});
+		}
+
+		for(let nWS = 0; nWS < this.wbModel.aWorksheets.length; nWS++) {
+			const sheet = this.wbModel.aWorksheets[nWS];
+			for (let i = 0; i < sheet.aComments.length; i++) {
+				const oComment = sheet.aComments[i];
+				arrResult.push({"Id" : oComment.asc_getId(), "Data" : oComment.ConvertToSimpleObject()});
+			}
+
+		}
+		return arrResult;
+	};
+
+	const customFunctionsStorageId = "cell-custom-functions-library";
+
+	Api.prototype.registerCustomFunctionsLibrary = function(obj)
+	{
+		// DISABLE FOR NATIVE VERSION
+		if (window["NATIVE_EDITOR_ENJINE"])
+			return;
+
+		if (undefined === obj)
+			obj = AscCommon.getLocalStorageItem(customFunctionsStorageId);
+
+		if (!obj)
+			return;
+
+		this.clearCustomFunctions();
+
+		let arr = obj["macrosArray"];
+		if (arr)
+		{
+			for (let i = 0, len = arr.length; i < len; i++)
+			{
+				try
+				{
+					AscCommon.safePluginEval(arr[i]["value"]);
+				}
+				catch (err)
+				{
+				}
+			}
+		}
+
+		this.recalculateCustomFunctions();
+	};
+
+	/**
+	 * Returns local custom functions library.
+	 * @memberof Api
+	 * @typeofeditors ["CSE"]
+	 * @alias GetCustomFunctions
+	 * @return {string} The custom functions library as json.
+	 * @since 8.1.0
+	 */
+	Api.prototype["pluginMethod_GetCustomFunctions"] = function()
+	{
+		try
+		{
+			let res = window.localStorage.getItem(customFunctionsStorageId);
+			if (!res) res = "";
+			return res;
+		}
+		catch (err)
+		{
+		}
+		return "";
+	};
+
+	/**
+	 * Update local custom functions library
+	 * @memberof Api
+	 * @typeofeditors ["CSE"]
+	 * @alias SetCustomFunctions
+	 * @param {string} jsonString - The custom functions library.
+	 * @since 8.1.0
+	 */
+	Api.prototype["pluginMethod_SetCustomFunctions"] = function(jsonString)
+	{
+		try
+		{
+			let obj = JSON.parse(jsonString);
+			AscCommon.setLocalStorageItem(customFunctionsStorageId, obj);
+
+			this.registerCustomFunctionsLibrary(obj);
+		}
+		catch (err)
+		{
+			console.log("SetCustomFunctions method error! Please check your code...");
+		}
+	};
+
 })(window);

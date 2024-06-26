@@ -42,6 +42,7 @@
 		function asc_CDownloadOptions(fileType, isDownloadEvent) {
 			this.fileType = fileType;
 			this.isDownloadEvent = !!isDownloadEvent;
+			this.isSaveAs = false;
 			this.advancedOptions = null;
 			this.compatible = true;
 
@@ -60,6 +61,7 @@
 
 		asc_CDownloadOptions.prototype.asc_setFileType = function (fileType) {this.fileType = fileType;};
 		asc_CDownloadOptions.prototype.asc_setIsDownloadEvent = function (isDownloadEvent) {this.isDownloadEvent = isDownloadEvent;};
+		asc_CDownloadOptions.prototype.asc_setIsSaveAs = function (isSaveAs) {this.isSaveAs = isSaveAs;};
 		asc_CDownloadOptions.prototype.asc_setAdvancedOptions = function (advancedOptions) {this.advancedOptions = advancedOptions;};
 		asc_CDownloadOptions.prototype.asc_setCompatible = function (compatible) {this.compatible = compatible;};
 		asc_CDownloadOptions.prototype.asc_setTextParams = function (textParams) {this.textParams = textParams;};
@@ -209,6 +211,7 @@
 		prot = asc_CDownloadOptions.prototype;
 		prot["asc_setFileType"] = prot.asc_setFileType;
 		prot["asc_setIsDownloadEvent"] = prot.asc_setIsDownloadEvent;
+		prot["asc_setIsSaveAs"] = prot.asc_setIsSaveAs;
 		prot["asc_setAdvancedOptions"] = prot.asc_setAdvancedOptions;
 		prot["asc_setCompatible"] = prot.asc_setCompatible;
 		prot["asc_setTextParams"] = prot.asc_setTextParams;
@@ -260,7 +263,8 @@
 		window["AscCommon"].asc_CFormula = asc_CFormula;
 		prot = asc_CFormula.prototype;
 		prot["asc_getName"]				= prot.asc_getName;
-		prot["asc_getLocaleName"]	= prot.asc_getLocaleName;
+		prot["asc_getLocaleName"]	    = prot.asc_getLocaleName;
+
 
 		window["AscCommon"].asc_CTextParams = window["AscCommon"]["asc_CTextParams"] = asc_CTextParams;
 		prot = asc_CTextParams.prototype;

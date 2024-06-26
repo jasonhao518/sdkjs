@@ -232,9 +232,7 @@ function (window, undefined) {
 	}
 
 	function days360(date1, date2, flag, isAccrint) {
-		// special modifying a function to call from ACCRINT formula
 		let sign;
-
 		let nY1 = date1.getUTCFullYear(), nM1 = date1.getUTCMonth() + 1, nD1 = date1.getUTCDate(),
 			nY2 = date2.getUTCFullYear(), nM2 = date2.getUTCMonth() + 1, nD2 = date2.getUTCDate();
 
@@ -314,6 +312,7 @@ function (window, undefined) {
 		}
 		return val;
 	}
+
 
 	function getWeekends(val) {
 		var res = [];
@@ -1162,36 +1161,47 @@ function (window, undefined) {
 	cEOMONTH.prototype.returnValueType = AscCommonExcel.cReturnFormulaType.value_replace_area;
 	cEOMONTH.prototype.argumentsType = [argType.any, argType.any];
 	cEOMONTH.prototype.Calculate = function (arg) {
-		var arg0 = arg[0], arg1 = arg[1];
-
-		if (arg0 instanceof cArea || arg0 instanceof cArea3D) {
+		let arg0 = arg[0], arg1 = arg[1];
+		if (cElementType.cellsRange === arg0.type || cElementType.cellsRange3D === arg0.type) {
 			arg0 = arg0.cross(arguments[1]);
-		} else if (arg0 instanceof cArray) {
+		} else if (cElementType.array === arg0.type) {
 			arg0 = arg0.getElementRowCol(0, 0);
+		} else if (cElementType.cell === arg0.type || cElementType.cell3D === arg0.type) {
+			arg0 = arg0.getValue();
 		}
 
-		if (arg1 instanceof cArea || arg1 instanceof cArea3D) {
+		if (cElementType.cellsRange === arg1.type || cElementType.cellsRange3D === arg1.type) {
 			arg1 = arg1.cross(arguments[1]);
-		} else if (arg1 instanceof cArray) {
+		} else if (cElementType.array === arg1.type) {
 			arg1 = arg1.getElementRowCol(0, 0);
+		} else if (cElementType.cell === arg1.type || cElementType.cell3D === arg1.type) {
+			arg1 = arg1.getValue();
+		}
+
+		if (cElementType.bool === arg0.type) {
+			return new cError(cErrorType.wrong_value_type);
+		}
+		if (cElementType.bool === arg1.type) {
+			return new cError(cErrorType.wrong_value_type);
 		}
 
 		arg0 = arg0.tocNumber();
 		arg1 = arg1.tocNumber();
 
-		if (arg0 instanceof cError) {
+		if (cElementType.error === arg0.type) {
 			return arg0;
 		}
-		if (arg1 instanceof cError) {
+		if (cElementType.error === arg1.type) {
 			return arg1;
 		}
 
-		var val = arg0.getValue();
-
+		let val = arg0.getValue();
 		if (val < 0) {
 			return new cError(cErrorType.not_numeric);
 		} else if (!AscCommon.bDate1904) {
-			if (val < 60) {
+			if (val === 0) {
+				val = new cDate((val - AscCommonExcel.c_DateCorrectConst + 1) * c_msPerDay);
+			} else if (val < 60) {
 				val = new cDate((val - AscCommonExcel.c_DateCorrectConst) * c_msPerDay);
 			} else if (val == 60) {
 				val = new cDate((val - AscCommonExcel.c_DateCorrectConst - 1) * c_msPerDay);
@@ -1202,13 +1212,16 @@ function (window, undefined) {
 			val = new cDate((val - AscCommonExcel.c_DateCorrectConst) * c_msPerDay);
 		}
 
+		// setUTCDate doesn't work properly for -UTC time
 		val.setUTCDate(1);
 		val.setUTCMonth(val.getUTCMonth() + arg1.getValue());
 		val.setUTCDate(val.getDaysInMonth());
 
-		return new cNumber(Math.floor((val.getTime() / 1000 - val.getTimezoneOffset() * 60) / c_sPerDay +
-			(AscCommonExcel.c_DateCorrectConst + 1)));
+		return new cNumber(Math.round(val.getExcelDateWithTime()));
+		// return new cNumber(Math.floor((val.getTime() / 1000 - val.getTimezoneOffset() * 60) / c_sPerDay +
+		// 	(AscCommonExcel.c_DateCorrectConst + 1)));
 	};
+
 
 	/**
 	 * @constructor
@@ -2002,7 +2015,7 @@ function (window, undefined) {
 		if (arg0.getValue() < 0) {
 			return new cError(cErrorType.wrong_value_type);
 		}
-
+		// ???
 		return new cNumber(
 			weekday[new cDate((arg0.getValue() - (AscCommonExcel.c_DateCorrectConst + (AscCommon.bDate1904 ? 0 : 1))) * c_msPerDay).getUTCDay()]);
 	};
@@ -2190,7 +2203,7 @@ function (window, undefined) {
 	cWORKDAY_INTL.prototype.argumentsMin = 2;
 	cWORKDAY_INTL.prototype.argumentsMax = 4;
 	cWORKDAY_INTL.prototype.numFormat = AscCommonExcel.cNumFormatNone;
-	cWORKDAY_INTL.prototype.arrayIndexes = {2: 1, 3: 1};
+	cWORKDAY_INTL.prototype.arrayIndexes = {2: 0, 3: 1};
 	cWORKDAY_INTL.prototype.argumentsType = [argType.any, argType.any, argType.number, argType.any];
 	//TODO в данном случае есть различия с ms. при 3 и 4 аргументах - замена результата на ошибку не происходит.
 	cWORKDAY_INTL.prototype.returnValueType = AscCommonExcel.cReturnFormulaType.value_replace_area;
@@ -2215,7 +2228,7 @@ function (window, undefined) {
 		if (val0 < 0) {
 			return new cError(cErrorType.not_numeric);
 		}
-		val0 = getCorrectDate(val0);
+		val0 = val0 < 61 ? new cDate((val0 - (AscCommonExcel.c_DateCorrectConst + (AscCommon.bDate1904 ? 0 : 1))) * c_msPerDay) : getCorrectDate(val0);
 
 		// Weekend
 		if (arg2 && "1111111" === arg2.getValue()) {
@@ -2232,7 +2245,7 @@ function (window, undefined) {
 			return holidays;
 		}
 
-		let calcDate = function () {
+		const calcDate = function () {
 			let dif = arg1.getValue(), count = 0, dif1 = dif > 0 ? 1 : dif < 0 ? -1 : 0, val, date = val0,
 				isEndOfCycle = false;
 			while (Math.abs(dif) > count) {
@@ -2240,9 +2253,9 @@ function (window, undefined) {
 				if (!_includeInHolidays(date, holidays) && !weekends[date.getUTCDay()]) {
 					count++;
 				}
-				//если последняя итерация
+				// if last iteration:
 				if (!(Math.abs(dif) > count)) {
-					//проверяем не оказалось ли следом выходных. если оказались - прибавляем
+					// check if it's next weekend. if found - add
 					date = new cDate(val0.getTime() + dif1 * c_msPerDay);
 					for (let i = 0; i < 7; i++) {
 						if (weekends[date.getUTCDay()]) {
@@ -2261,6 +2274,10 @@ function (window, undefined) {
 
 			if (val < 0) {
 				return new cError(cErrorType.not_numeric);
+			}
+			// shift for date less than 1/3/1900
+			if (arg0.getValue() < 61) {
+				val++;
 			}
 
 			return t.setCalcValue(new cNumber(val), 14);
@@ -2409,5 +2426,6 @@ function (window, undefined) {
 	window['AscCommonExcel'].yearFrac = yearFrac;
 	window['AscCommonExcel'].diffDate = diffDate;
 	window['AscCommonExcel'].days360 = days360;
+	window['AscCommonExcel'].getCorrectDate = getCorrectDate;
 	window['AscCommonExcel'].daysInYear = daysInYear;
 })(window);

@@ -96,7 +96,7 @@
 	}
 	function CreateParagraph()
 	{
-		return new AscWord.CParagraph(AscTest.DrawingDocument);
+		return new AscWord.Paragraph();
 	}
 	function CreateRun()
 	{
@@ -139,6 +139,22 @@
 	function CreateRunStyle(name)
 	{
 		return CreateStyle(styletype_Character, name);
+	}
+	function CreateMath()
+	{
+		let math = new AscWord.ParaMath();
+		let run = new AscWord.CRun(null, true);
+		math.Root.AddToContent(0, run);
+		return math;
+	}
+	function CreateDefaultHeader(sectPr)
+	{
+		if (!sectPr || !logicDocument)
+			return null;
+		
+		let header = new AscCommonWord.CHeaderFooter(logicDocument.HdrFtr, logicDocument, logicDocument.DrawingDocument, AscCommon.hdrftr_Header);
+		sectPr.Set_Header_Default(header);
+		return header.GetContent();
 	}
 	function GetParagraphText(paragraph)
 	{
@@ -322,7 +338,7 @@
 	}
 	function MoveCursorToParagraph(paragraph, isToStart)
 	{
-		if (!paragraph || !(paragraph instanceof AscWord.CParagraph))
+		if (!paragraph || !(paragraph instanceof AscWord.Paragraph))
 			return;
 		
 		paragraph.SetThisElementCurrent();
@@ -452,6 +468,8 @@
 	AscTest.CreateStyle              = CreateStyle;
 	AscTest.CreateParagraphStyle     = CreateParagraphStyle;
 	AscTest.CreateRunStyle           = CreateRunStyle;
+	AscTest.CreateMath               = CreateMath;
+	AscTest.CreateDefaultHeader      = CreateDefaultHeader;
 	AscTest.GetParagraphText         = GetParagraphText;
 	AscTest.GetParagraphReviewText   = GetParagraphReviewText;
 	AscTest.RemoveTableBorders       = RemoveTableBorders;

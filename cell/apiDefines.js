@@ -353,7 +353,8 @@ var c_oAscVisibleAreaOleEditorBorderColor = new CColor(32, 139, 255);
     Promote     : 8,
     Dash        : 16,
     DashThick   : 32,
-    ResizeRange : 64
+    ResizeRange : 64,
+    NotStroke   : 128
   };
 
   var docChangedType = {
@@ -498,7 +499,8 @@ var c_oAscPopUpSelectorType = {
     text: 1,
     reference: 2,
     any: 3,
-    logical: 4
+    logical: 4,
+    array: 5
   };
 
   var c_oAscSelectionForCFType = {

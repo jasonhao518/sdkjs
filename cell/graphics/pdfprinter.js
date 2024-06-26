@@ -297,6 +297,10 @@ CPdfPrinter.prototype =
         this.SetFont(font);
         return this;
     },
+	setTextRotated : function(isRotated)
+	{
+		// For compatibility with Asc.DrawingContext in spreadsheets
+	},
 
     measureChar : function(text, units)
     {
@@ -339,6 +343,10 @@ CPdfPrinter.prototype =
         }
         return this;
     },
+	tg : function(gid, x, y, codePoints)
+	{
+		this.DocumentRenderer.tg(gid, x * vector_koef, y * vector_koef, codePoints);
+	},
 
     beginPath : function()
     {
@@ -594,10 +602,6 @@ CPdfPrinter.prototype =
     FillText2 : function(x,y,text)
     {
         return this.DocumentRenderer.FillText2(x,y,text);
-    },
-    charspace : function(space)
-    {
-        return this.DocumentRenderer.charspace(space);
     },
     SetIntegerGrid : function(param)
     {

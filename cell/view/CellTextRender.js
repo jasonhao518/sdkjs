@@ -95,14 +95,39 @@
 			}
 			return h;
 		};
-
-
-		CellTextRender.prototype.getPrevChar = function (pos) {
-			return pos <= 0 ? 0 : pos <= this.chars.length ? pos - 1 : this.chars.length;
+		
+		CellTextRender.prototype.getPrevChar = function (pos, skipCombined) {
+			if (pos <= 0)
+				return 0;
+			else if (pos > this.chars.length)
+				return this.chars.length;
+			
+			--pos;
+			
+			// By default we skip combined chars
+			if (false === skipCombined)
+				return pos;
+			
+			while (pos > 0 && this._isCombinedChar(pos)) {
+				--pos;
+			}
+			
+			return pos;
 		};
 
 		CellTextRender.prototype.getNextChar = function (pos) {
-			return pos >= this.chars.length ? this.chars.length : pos >= 0 ? pos + 1 : 0;
+			
+			if (pos >= this.chars.length)
+				return this.chars.length;
+			else if (pos < 0)
+				return 0;
+			
+			++pos;
+			while (pos < this.chars.length && this._isCombinedChar(pos)) {
+				++pos;
+			}
+			
+			return pos;
 		};
 
 		CellTextRender.prototype.getPrevWord = function (pos) {
@@ -246,7 +271,53 @@
 		CellTextRender.prototype.getCharWidth = function (pos) {
 			return this.charWidths[pos];
 		};
-
+		
+		CellTextRender.prototype.getCharPosByXY = function(x, y, topLine, zoom) {
+			
+			let line = this.getLineByY(y, topLine, zoom);
+			if (line < 0) {
+				return -1;
+			}
+			
+			let lineInfo = this.getLineInfo(line);
+			let _x = lineInfo.startX;
+			let dist = Math.abs(x - _x);
+			let resultPos = lineInfo.beg;
+			
+			for (let charPos = lineInfo.beg; charPos <= lineInfo.end; ++charPos) {
+				
+				if (!this._isCombinedChar(charPos) && dist > Math.abs(x - _x)) {
+					dist = Math.abs(x - _x);
+					resultPos = charPos;
+				}
+				
+				_x += this.getCharWidth(charPos);
+			}
+			
+			if (Math.abs(x - _x) < dist)
+				resultPos = line === this.getLinesCount() - 1 ?  lineInfo.end + 1 : lineInfo.end;
+			
+			return resultPos;
+		};
+		
+		CellTextRender.prototype.getLineByY = function(y, topLine, zoom) {
+			let lineCount = this.getLinesCount();
+			if (lineCount <= 0) {
+				return -1;
+			}
+			
+			let lineInfo;
+			for (let _y = 0, line = Math.max(topLine, 0); line < lineCount; ++line) {
+				lineInfo = this.getLineInfo(line);
+				_y += Asc.round(lineInfo.th * zoom);
+				if (y <= _y) {
+					return line;
+				}
+			}
+			
+			return lineCount - 1;
+		};
+		
 
 		//------------------------------------------------------------export---------------------------------------------------
 		window['AscCommonExcel'] = window['AscCommonExcel'] || {};

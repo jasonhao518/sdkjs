@@ -62,8 +62,8 @@ function PolyLine (drawingObjects, theme, master, layout, slide, pageIndex)
 
         this.drawingObjects = drawingObjects;
         this.arrPoint = [];
-        this.Matrix = new AscCommon.CMatrixL();
-        this.TransformMatrix = new AscCommon.CMatrixL();
+        this.Matrix = new AscCommon.CMatrix();
+        this.TransformMatrix = new AscCommon.CMatrix();
 
         this.pageIndex = pageIndex;
         this.style  = AscFormat.CreateDefaultShapeStyle();
@@ -196,10 +196,7 @@ function PolyLine (drawingObjects, theme, master, layout, slide, pageIndex)
             }
         }
 
-
-
-
-        var shape = new AscFormat.CShape();
+		let shape = this.drawingObjects.createShape();
 
         //  if(drawingObjects)
         //  {

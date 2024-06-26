@@ -105,6 +105,7 @@
 
 		this.bSaveFormat = false; //для вставки, допустим, из плагина необходимо чтобы при добавлении текста в шейп сохранялось форматирование
 		this.bCut = false;
+		this.forceCutSelection = null;
 
 		this.pastedFrom = null;
 
@@ -950,9 +951,9 @@
 					this.Api.asc_CheckCopy(copy_data, c_oAscClipboardDataFormat.Text | c_oAscClipboardDataFormat.Html | c_oAscClipboardDataFormat.Internal);
 
 					const data = [new ClipboardItem({
-						["text/plain"]    : new Blob([copy_data.data[c_oAscClipboardDataFormat.Text]], {type: "text/plain"}),
-						["text/html"]     : new Blob([copy_data.data[c_oAscClipboardDataFormat.Html]], {type: "text/html"}),
-						["web text/x-custom"] : new Blob(["asc_internalData2;" + copy_data.data[c_oAscClipboardDataFormat.Internal]], {type: "web text/x-custom"})
+						"text/plain"        : new Blob([copy_data.data[c_oAscClipboardDataFormat.Text]], {type: "text/plain"}),
+						"text/html"         : new Blob([copy_data.data[c_oAscClipboardDataFormat.Html]], {type: "text/html"}),
+						"web text/x-custom" : new Blob(["asc_internalData2;" + copy_data.data[c_oAscClipboardDataFormat.Internal]], {type: "web text/x-custom"})
 					})];
 
 					navigator.clipboard.write(data).then(function(){},function(){});
@@ -1146,19 +1147,29 @@
 
 			if (!_ret && null != this.LastCopyBinary)
 			{
-				var _data = null;
 				var _isInternal = false;
+				var _internal_data = null;
+				var _text_data = null;
 				for (var i = 0; i < this.LastCopyBinary.length; i++)
 				{
-					if (c_oAscClipboardDataFormat.Internal == this.LastCopyBinary[i].type)
+					if (c_oAscClipboardDataFormat.Internal === this.LastCopyBinary[i].type)
 					{
-						this.Api.asc_PasteData(AscCommon.c_oAscClipboardDataFormat.Internal, this.LastCopyBinary[i].data);
+						_internal_data = this.LastCopyBinary[i].data;
 						_isInternal = true;
 					}
+					else if (c_oAscClipboardDataFormat.Text === this.LastCopyBinary[i].type)
+					{
+						_text_data = this.LastCopyBinary[i].data;
+					}
 				}
-
-				if (!_isInternal && this.LastCopyBinary.length > 0)
-					this.Api.asc_PasteData(this.LastCopyBinary[0].type, this.LastCopyBinary[0].data);
+				if (_isInternal)
+				{
+					this.Api.asc_PasteData(AscCommon.c_oAscClipboardDataFormat.Internal, _internal_data, null, _text_data);
+				}
+				else if (this.LastCopyBinary.length > 0)
+				{
+					this.Api.asc_PasteData(this.LastCopyBinary[0].type, this.LastCopyBinary[0].data, null, _text_data);
+				}
 			}
 			return _ret;
 		},

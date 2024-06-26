@@ -283,6 +283,11 @@
     {
         return (1 === this.m_nUseType);
     };
+	CCollaborativeEditingBase.prototype.canSendChanges = function()
+	{
+		let api = this.GetEditorApi();
+		return api && api.canSendChanges();
+	};
 	CCollaborativeEditingBase.prototype.getCoHistory = function()
 	{
 		return this.CoHistory;
@@ -760,7 +765,7 @@
             if ( null != Class )
             {
                 var Lock = Class.Lock;
-                Lock.Set_Type( AscCommon.locktype_Other, false );
+                Lock.Set_Type( AscCommon.c_oAscLockTypes.kLockTypeOther, false );
                 if(Class.getObjectType && Class.getObjectType() === AscDFH.historyitem_type_Slide)
                 {
                     editor.WordControl.m_oLogicDocument.DrawingDocument.UnLockSlide && editor.WordControl.m_oLogicDocument.DrawingDocument.UnLockSlide(Class.num);
@@ -1250,7 +1255,8 @@
 	CCollaborativeEditingBase.prototype.PreUndo = function()
 	{
 		let logicDocument = this.m_oLogicDocument;
-
+		
+		logicDocument.sendEvent("asc_onBeforeUndoRedoInCollaboration");
 		logicDocument.DrawingDocument.EndTrackTable(null, true);
 		logicDocument.TurnOffCheckChartSelection();
 
@@ -1266,6 +1272,7 @@
 		logicDocument.UpdateSelection();
 		logicDocument.UpdateInterface();
 		logicDocument.UpdateRulers();
+		logicDocument.sendEvent("asc_onUndoRedoInCollaboration");
 	};
 	CCollaborativeEditingBase.prototype.UndoGlobal = function(count)
 	{

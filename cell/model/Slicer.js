@@ -1451,16 +1451,20 @@
 				api.wbModel.dependencyFormulas.unlockRecal();
 				History.EndTransaction();
 
-				api._changePivotEndCheckError(changeRes, function () {
+				let success = api._changePivotEndCheckError(changeRes, function () {
 					t.applyPivotFilterWithLock(api, values, slicerName, excludePivot, true);
 				});
+				if (success) {
+					//todo pivot
+					api.updateWorksheetByPivotTable(pivotTables[0], changeRes, true, false);
+				}
 			});
 		} else {
 			api.wbModel.onSlicerUpdate(slicerName);
 		}
 	};
 	CT_slicerCacheDefinition.prototype.applyPivotFilter = function (api, values, excludePivot, confirmation) {
-		var changeRes = {error: c_oAscError.ID.No, warning: c_oAscError.ID.No};
+		var changeRes =  new AscCommonExcel.PivotChangeResult();
 		var fld = this.getPivotFieldIndex();
 		if (-1 === fld) {
 			return;
@@ -1486,14 +1490,15 @@
 			pivotTable.fillAutoFiltersOptions(autoFilterObject, fld);
 			autoFilterObject.setVisibleFromValues(visible);
 			autoFilterObject.filter.type = Asc.c_oAscAutoFilterTypes.Filters;
-			changeRes = api._changePivot(pivotTable, confirmation, false, function (ws) {
+			let changeResCur = api._changePivot(pivotTable, confirmation, true, function (ws) {
 				pivotTable.filterPivotItems(fld, autoFilterObject);
 			});
+			changeRes.merge(changeResCur);
 			if (c_oAscError.ID.No !== changeRes.error || c_oAscError.ID.No !== changeRes.warning) {
 				return changeRes;
 			}
-			if (changeRes.updateRes) {
-				pivotTable.syncSlicersWithPivot(changeRes.updateRes.cacheFieldsWithData);
+			if (changeResCur.updateRes) {
+				pivotTable.syncSlicersWithPivot(changeResCur.updateRes.cacheFieldsWithData);
 			}
 		}
 		var oldVal = new AscCommonExcel.UndoRedoData_BinaryWrapper2(this);

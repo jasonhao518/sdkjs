@@ -68,6 +68,9 @@ CWordCollaborativeEditing.prototype.Clear = function()
 };
 CWordCollaborativeEditing.prototype.Send_Changes = function(IsUserSave, AdditionalInfo, IsUpdateInterface, isAfterAskSave)
 {
+	if (!this.canSendChanges())
+		return;
+	
     // Пересчитываем позиции
     this.Refresh_DCChanges();
 
@@ -127,7 +130,7 @@ CWordCollaborativeEditing.prototype.Send_Changes = function(IsUserSave, Addition
 		for (var Index = 0; Index < UnlockCount2; Index++)
 		{
 			var Class = this.m_aNeedUnlock2[Index];
-			Class.Lock.Set_Type(AscCommon.locktype_None, false);
+			Class.Lock.Set_Type(AscCommon.c_oAscLockTypes.kLockTypeNone, false);
 			editor.CoAuthoringApi.releaseLocks(Class.Get_Id());
 		}
 
@@ -190,9 +193,9 @@ CWordCollaborativeEditing.prototype.Release_Locks = function()
     for (var Index = 0; Index < UnlockCount; Index++)
     {
         var CurLockType = this.m_aNeedUnlock[Index].Lock.Get_Type();
-        if (AscCommon.locktype_Other3 != CurLockType && AscCommon.locktype_Other != CurLockType)
+        if (AscCommon.c_oAscLockTypes.kLockTypeOther3 != CurLockType && AscCommon.c_oAscLockTypes.kLockTypeOther != CurLockType)
         {
-            this.m_aNeedUnlock[Index].Lock.Set_Type(AscCommon.locktype_None, false);
+            this.m_aNeedUnlock[Index].Lock.Set_Type(AscCommon.c_oAscLockTypes.kLockTypeNone, false);
 
             if (this.m_aNeedUnlock[Index] instanceof AscCommonWord.CHeaderFooterController)
                 editor.sync_UnLockHeaderFooters();
@@ -207,9 +210,9 @@ CWordCollaborativeEditing.prototype.Release_Locks = function()
             else if (this.m_aNeedUnlock[Index] instanceof AscCommonWord.CDocProtect)
                 editor.sendEvent("asc_onLockDocumentProtection", false);
         }
-        else if (AscCommon.locktype_Other3 === CurLockType)
+        else if (AscCommon.c_oAscLockTypes.kLockTypeOther3 === CurLockType)
         {
-            this.m_aNeedUnlock[Index].Lock.Set_Type(AscCommon.locktype_Other, false);
+            this.m_aNeedUnlock[Index].Lock.Set_Type(AscCommon.c_oAscLockTypes.kLockTypeOther, false);
         }
     }
 };
@@ -271,7 +274,7 @@ CWordCollaborativeEditing.prototype.OnEnd_CheckLock = function(isDontLockInFastM
 		}
 	}
 
-	if (true === isDontLockInFastMode && true === this.Is_Fast())
+	if ((true === isDontLockInFastMode && true === this.Is_Fast()) || !this.canSendChanges())
 	{
 		if (fCallback)
 		{
@@ -345,7 +348,7 @@ CWordCollaborativeEditing.prototype.private_LockByMe = function()
 			var oClass = AscCommon.g_oTableId.Get_ById(oItem);
 			if (oClass)
 			{
-				oClass.Lock.Set_Type(AscCommon.locktype_Mine);
+				oClass.Lock.Set_Type(AscCommon.c_oAscLockTypes.kLockTypeMine);
 				this.Add_Unlock2(oClass);
 			}
 		}

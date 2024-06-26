@@ -34,8 +34,8 @@
 
 (function (window)
 {
-const charCellEditorWidth = 5;
-const cellEditorWidth = 100;
+	const charCellEditorWidth = 5 * 96 / 25.4; // Шейпер возвращает ширину символа 5мм для шрифта размером 10
+	const cellEditorWidth = 100 * 96 / 25.4;
 
 	AscCommonExcel.WorkbookView.prototype._onUpdateCursor = function () {};
 	AscCommonExcel.WorkbookView.prototype._canResize = function () {};

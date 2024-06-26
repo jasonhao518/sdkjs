@@ -1485,9 +1485,9 @@
 			this.activeCellId = r.GetLong();
 			this.update();
 		};
-		SelectionRange.prototype.Select = function () {
+		SelectionRange.prototype.Select = function (doNotUpdate) {
 			this.worksheet.selectionRange = this.clone();
-			this.worksheet.workbook.handlers.trigger('updateSelection');
+			!doNotUpdate && this.worksheet.workbook.handlers.trigger('updateSelection');
 		};
 		SelectionRange.prototype.isContainsOnlyFullRowOrCol = function (byCol) {
 			var res = true;
@@ -2619,7 +2619,7 @@
 				var arrColors = [];
 				for (var i = 0; i < colors.length; i++) {
 					var _stop = new AscCommonExcel.GradientStop();
-					_stop.position = (i + 1) / colors.length;
+					_stop.position = i / (colors.length - 1);
 					_stop.color = colors[i];
 					arrColors.push(_stop);
 				}
@@ -3097,6 +3097,8 @@
 			this.topLeftCell = null;
 			this.view = null;
 
+			this.tabSelected = null;
+
 			return this;
 		}
 
@@ -3445,6 +3447,20 @@
 		asc_CFindOptions.prototype.asc_setLastSearchElem = function (val) {
 			this.lastSearchElem = val;
 		};
+		asc_CFindOptions.prototype.asc_getLastSearchElem = function (bGetFromSearchEngine) {
+			if (bGetFromSearchEngine) {
+				let api = window.Asc.editor;
+				let wb = api && api.wb;
+				if (wb) {
+					let searchEngine = wb.SearchEngine;
+					if (searchEngine && searchEngine.Elements && searchEngine.Id && searchEngine.Elements[searchEngine.Id - 1]) {
+						let element = searchEngine.Elements[searchEngine.Id - 1];
+						return [searchEngine.Id - 1, element.sheet, element.name, element.cell, element.text, element.formula];
+					}
+				}
+			}
+			return this.lastSearchElem;
+		};
 		asc_CFindOptions.prototype.asc_setNotSearchEmptyCells = function (val) {
 			this.isNotSearchEmptyCells = val;
 		};
@@ -3576,7 +3592,7 @@
 		};
 
 		/** @constructor */
-		function asc_CCompleteMenu(name, type) {
+		function asc_CCompleteMenu(name, type, desc) {
 			this.name = name;
 			this.type = type;
 		}
@@ -3811,7 +3827,9 @@
 		};
 
 		cDate.prototype.getDateFromExcelWithTime2 = function (val) {
-			return new cDate(val * c_msPerDay + this.getExcelNullDate());
+			let value = val * c_msPerDay + this.getExcelNullDate();
+			//double value is truncated in cDate constructor so use round
+			return new cDate(Math.round(value));
 		};
 
 		cDate.prototype.addYears = function (counts) {
@@ -3881,11 +3899,16 @@
 			return api.asc_getLocaleExample(AscCommon.getShortTimeFormat(), this.getExcelDateWithTime() - this.getTimezoneOffset() / (60 * 24));
 		};
 		cDate.prototype.fromISO8601 = function (dateStr) {
+			let date;
 			if (dateStr.endsWith("Z")) {
-				return new cDate(dateStr);
+				date = new cDate(dateStr);
 			} else {
-				return new cDate(dateStr + "Z");
+				date = new cDate(dateStr + "Z");
 			}
+			if (isNaN(date)) {
+				date = null;
+			}
+			return date;
 		};
 		cDate.prototype.getCurrentDate = function () {
 			return this;
@@ -4074,6 +4097,7 @@
 		prot["asc_setSpecificRange"] = prot.asc_setSpecificRange;
 		prot["asc_setNeedRecalc"] = prot.asc_setNeedRecalc;
 		prot["asc_setLastSearchElem"] = prot.asc_setLastSearchElem;
+		prot["asc_getLastSearchElem"] = prot.asc_getLastSearchElem;
 		prot["asc_setNotSearchEmptyCells"] = prot.asc_setNotSearchEmptyCells;
 		prot["asc_setActiveCell"] = prot.asc_setActiveCell;
 		prot["asc_setIsForMacros"] = prot.asc_setIsForMacros;

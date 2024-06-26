@@ -71,6 +71,17 @@
 			}
 		};
 
+		LineInfo.prototype.initStartX = function (lineWidth ,x, maxWidth, align) {
+			var x_ = x;
+			if (align === AscCommon.align_Right) {
+				x_ = x + maxWidth - lineWidth - 1/*px*/;
+			} else if (align === AscCommon.align_Center) {
+				x_ = x + 0.5 * (maxWidth - lineWidth);
+			}
+			this.startX = x_;
+			return x_;
+		};
+
 		/** @constructor */
 		function lineMetrics() {
 			this.th = 0;
@@ -92,6 +103,7 @@
 
 		/** @constructor */
 		function charProperties() {
+			this.grapheme = AscFonts.NO_GRAPHEME;
 			this.c = undefined;
 			this.lm = undefined;
 			this.fm = undefined;
@@ -109,6 +121,7 @@
 
 		charProperties.prototype.clone = function () {
 			var oRes = new charProperties();
+			oRes.grapheme = this.grapheme;
 			oRes.c = (undefined !== this.c) ? this.c.clone() : undefined;
 			oRes.lm = (undefined !== this.lm) ? this.lm.clone() : undefined;
 			oRes.fm = (undefined !== this.fm) ? this.fm.clone() : undefined;
@@ -124,8 +137,100 @@
 			oRes.wrd = this.wrd;
 			return oRes;
 		};
+		
+		/**
+		 *
+		 * @constructor
+		 */
+		function FragmentShaper() {
+			AscFonts.CTextShaper.call(this);
+			
+			this.font           = null;
+			this.stringRenderer = null;
+			this.charIndex      = 0;
+		}
+		FragmentShaper.prototype = Object.create(AscFonts.CTextShaper.prototype);
+		FragmentShaper.prototype.constructor = FragmentShaper;
+		FragmentShaper.prototype.shapeFragment = function(chars, font, stringRenderer, beginIndex) {
+			this.font           = font;
+			this.stringRenderer = stringRenderer;
+			this.charIndex      = beginIndex;
+			
+			this.StartString();
+			
+			let char, isNL, isSP;
+			for (let i = 0; i < chars.length; ++i) {
+				
+				char = chars[i];
+				isNL = stringRenderer.codesHypNL[char];
+				isSP = !isNL ? stringRenderer.codesHypSp[char] : false;
+				
+				if (isNL || isSP) {
+					this.FlushWord();
+					this._handleSpace(char);
+				} else {
+					this.AppendToString(char);
+				}
+			}
+			this.FlushWord();
+		};
+		FragmentShaper.prototype._handleSpace = function(char) {
+			let st = this.stringRenderer;
+			let _width = this.stringRenderer.drawingCtx.measureChar(null, 0, char).width;
+			
+			st._getCharPropAt(this.charIndex).grapheme = AscFonts.NO_GRAPHEME;
+			st.charWidths[this.charIndex] = _width;
+			st.chars[this.charIndex] = char;
+			++this.charIndex;
+		};
+		FragmentShaper.prototype.FlushGrapheme = function(grapheme, width, codePointCount, isLigature) {
+			if (codePointCount <= 0)
+				return;
+			
+			let st = this.stringRenderer;
+			
+			let _width = asc_round(width * this.font.getSize() / 25.4 * this.stringRenderer.drawingCtx.getPPIY());
 
-
+			// Make all widths integer values
+			let w = Math.trunc(_width / codePointCount);
+			let r = Math.max(0, _width - w * codePointCount);
+			
+			// TODO: RTL
+			st._getCharPropAt(this.charIndex).grapheme = grapheme;
+			st.charWidths[this.charIndex] = w;
+			st.chars[this.charIndex] = this.Buffer[this.BufferIndex];
+			++this.charIndex;
+			
+			for (let i = 1; i < codePointCount; ++i)
+			{
+				st._getCharPropAt(this.charIndex).grapheme = AscFonts.NO_GRAPHEME;
+				st.charWidths[this.charIndex] = w + (r ? 1 : 0);
+				st.chars[this.charIndex] = this.Buffer[this.BufferIndex + i];
+				++this.charIndex;
+				
+				if (r)
+					--r;
+			}
+			
+			if (this.IsRtlDirection())
+				this.BufferIndex -= codePointCount;
+			else
+				this.BufferIndex += codePointCount;
+		};
+		FragmentShaper.prototype.GetFontSlot = function() {
+			return AscWord.fontslot_ASCII;
+		};
+		FragmentShaper.prototype.GetDirection = function(script) {
+			return AscFonts.HB_DIRECTION.HB_DIRECTION_LTR;
+		};
+		FragmentShaper.prototype.GetFontInfo = function() {
+			return {
+				Name  : this.font.getName(),
+				Size  : this.font.getSize(),
+				Style : (this.font.getBold() ? 1 : 0) | (this.font.getItalic() ? 2 : 0)
+			};
+		};
+		
 		/**
 		 * Formatted text render
 		 * -----------------------------------------------------------------------------
@@ -136,6 +241,7 @@
 		 */
 		function StringRender(drawingCtx) {
 			this.drawingCtx = drawingCtx;
+			this.fragmentShaper = new FragmentShaper();
 
 			/** @type Array */
 			this.fragments = undefined;
@@ -145,14 +251,10 @@
 
 			/** @type String */
 			this.chars = [];
-
 			this.charWidths = [];
 			this.charProps = [];
 			this.lines = [];
 			this.angle = 0;
-
-			this.fontNeedUpdate = false;
-
 
 			this.codesNL = {0xD: 1, 0xA: 1};
 
@@ -294,7 +396,6 @@
 			}
 
 			this.angle = 0;
-			this.fontNeedUpdate = true;
 		};
 
 		/**
@@ -312,7 +413,6 @@
 			// TODO: добавить padding по сторонам
 
 			this.angle = 0;  //  angle;
-			this.fontNeedUpdate = true;
 
 			var dx = 0, dy = 0, offsetX = 0,    // смещение BB
 
@@ -546,7 +646,7 @@
 			}
 			return w;
 		};
-
+		
 		/**
 		 * @param {Number} startPos
 		 * @param {Number} endPos
@@ -745,29 +845,6 @@
 		StringRender.prototype._insertRepeatChars = function (maxWidth) {
 			var self = this, width, w, pos, charProp;
 
-			function shiftCharPropsLeft(fromPos, delta) {
-				// delta - отрицательная
-				var length = self.charProps.length;
-				for (var i = fromPos; i < length; ++i) {
-					var p = self.charProps[i];
-					if (p) {
-						delete self.charProps[i];
-						self.charProps[i + delta] = p;
-					}
-				}
-			}
-
-			function shiftCharPropsRight(fromPos, delta) {
-				// delta - положительная
-				for (var i = self.charProps.length - 1; i >= fromPos; --i) {
-					var p = self.charProps[i];
-					if (p) {
-						delete self.charProps[i];
-						self.charProps[i + delta] = p;
-					}
-				}
-			}
-
 			function insertRepeatChars() {
 				if (0 === charProp.total)
 					return;	// Символ уже изначально лежит в строке и в списке
@@ -781,8 +858,11 @@
 					self.charWidths.slice(0, repeatEnd),
 					self.charWidths.slice(pos, pos + 1),
 					self.charWidths.slice(repeatEnd));
-
-				shiftCharPropsRight(pos + 1, 1);
+				
+				self.charProps = [].concat(
+					self.charProps.slice(0, repeatEnd),
+					self.charProps.slice(pos, pos + 1),
+					self.charProps.slice(repeatEnd));
 			}
 
 			function removeRepeatChar() {
@@ -793,9 +873,10 @@
 				self.charWidths = [].concat(
 					self.charWidths.slice(0, pos),
 					self.charWidths.slice(pos + 1));
-
-				delete self.charProps[pos];
-				shiftCharPropsLeft(pos + 1, -1);
+				
+				self.charProps = [].concat(
+					self.charProps.slice(0, pos),
+					self.charProps.slice(pos + 1));
 			}
 
 			width = this._calcTextMetrics(true).width;
@@ -826,6 +907,13 @@
 			}
 			return prop;
 		};
+		
+		StringRender.prototype._getGraphemeDelta = function(grapheme, fontSize) {
+			let ppiy = this.drawingCtx.getPPIY();
+			let width = AscFonts.GetGraphemeWidth(grapheme) * ppiy / 25.4 * fontSize;
+			let bbox = AscFonts.GetGraphemeBBox(grapheme, fontSize, ppiy);
+			return bbox.maxX - bbox.minX + 1 - width;
+		};
 
 		/**
 		 * @param {Number} maxWidth
@@ -841,17 +929,22 @@
 			var hasRepeats = false;
 			var i, j, fr, fmt, chars, p, p_ = {}, pIndex, startCh;
 			var tw = 0, nlPos = 0, isEastAsian, hpPos = undefined, isSP_ = true, delta = 0;
-
-			function measureFragment(_chars) {
-				var j, chc, chw, chPos, isNL, isSP, isHP, tm;
-				for (chPos = self.chars.length, j = 0; j < _chars.length; ++j, ++chPos) {
-					chc = _chars[j];
-					tm = ctx.measureChar(null, 0/*px units*/, chc);
-					chw = tm.width;
-
+			let frShaper = this.fragmentShaper;
+			
+			function measureFragment(_chars, format) {
+				
+				let chPos = self.chars.length;
+				let fontSize = format.getSize();
+				frShaper.shapeFragment(_chars, format, self, chPos);
+				
+				var chc, chw, isNL, isSP, isHP;
+				for (; chPos < self.chars.length; ++chPos) {
+					chc = self.chars[chPos];
+					chw = self.charWidths[chPos];
+					
 					isNL = self.codesHypNL[chc];
 					isSP = !isNL ? self.codesHypSp[chc] : false;
-
+					
 					// if 'wrap flag' is set
 					if (wrap || wrapNL || verticalText) {
 						isHP = !isSP && !isNL ? self.codesHyphen[chc] : false;
@@ -867,19 +960,20 @@
 							chw = 0;
 							tw = 0;
 							hpPos = undefined;
+							self.charWidths[chPos] = 0;
 						} else if (isSP || isHP) {
 							// move hyphenation position
 							hpPos = chPos + 1;
 						} else if (isEastAsian) {
-							if (0 !== j && !(AscCommon.g_aPunctuation[_chars[j - 1]] &
-								AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_END_E) &&
+							if (0 !== chPos && !(AscCommon.g_aPunctuation[self.chars[chPos - 1]] &
+									AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_END_E) &&
 								!(AscCommon.g_aPunctuation[chc] & AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_BEGIN_E)) {
 								// move hyphenation position
 								hpPos = chPos;
 							}
 						}
-
-						if (chPos !== nlPos && ((wrap && !isSP && tw + chw > maxWidth) || verticalText)) {
+						
+						if (chPos !== nlPos && ((wrap && !isSP && tw + chw > maxWidth) || (verticalText && !self._isCombinedChar(chPos)))) {
 							// add hyphenation marker
 							nlPos = hpPos !== undefined ? hpPos : chPos;
 							self._getCharPropAt(nlPos).hp = true;
@@ -887,35 +981,36 @@
 							tw = self._calcCharsWidth(nlPos, chPos - 1);
 							hpPos = undefined;
 						}
-
+						
 						if (isEastAsian) {
 							// move hyphenation position
-							if (j !== _chars.length && !(AscCommon.g_aPunctuation[_chars[j + 1]] &
-								AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_BEGIN_E) &&
+							if (chPos < self.chars.length - 1 && !(AscCommon.g_aPunctuation[self.chars[chPos + 1]] &
+									AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_BEGIN_E) &&
 								!(AscCommon.g_aPunctuation[chc] & AscCommon.PUNCTUATION_FLAG_CANT_BE_AT_END_E)) {
 								hpPos = chPos + 1;
 							}
 						}
 					}
-
+					
 					if (isSP_ && !isSP && !isNL) {
 						// add word beginning marker
 						self._getCharPropAt(chPos).wrd = true;
 					}
-
+					
 					tw += chw;
-					self.charWidths.push(chw);
-					if (!self.chars) {
-						self.chars = [];
-					}
-					self.chars.push(chc);
+					
 					isSP_ = isSP || isNL;
-					delta = tm.widthBB - tm.width;
+					
+					if (isSP || isNL) {
+						delta = 0;
+					} else if (AscFonts.NO_GRAPHEME !== self._getCharPropAt(chPos).grapheme) {
+						delta = self._getGraphemeDelta(self._getCharPropAt(chPos).grapheme, fontSize);
+					}
 				}
 			}
-
+			
 			this._reset();
-
+			
 			// for each text fragment
 			for (i = 0; i < this.fragments.length; ++i) {
 				startCh = this.charWidths.length;
@@ -942,13 +1037,16 @@
 					fmt.fs = p.fsz * 2 / 3;
 					p.font = fmt;
 				}
-
+				
 				// change font on canvas
-				if (this._setFont(ctx, fmt) || fmt.getUnderline() !== font.getUnderline() ||
-					fmt.getStrikeout() !== font.getStrikeout() || fmt.getColor() !== p_.c) {
+				if (!fmt.isEqual(ctx.font)
+					|| fmt.getUnderline() !== font.getUnderline()
+					|| fmt.getStrikeout() !== font.getStrikeout()
+					|| fmt.getColor() !== p_.c) {
 					p.font = fmt;
 				}
-
+				this._setFont(ctx, fmt);
+				
 				// add marker in chars flow
 				if (i === 0) {
 					p.font = fmt;
@@ -976,7 +1074,7 @@
 				if (chars.length < 1) {
 					continue;
 				}
-				measureFragment(chars);
+				measureFragment(chars, fmt);
 
 				// для italic текста прибавляем к концу строки разницу между charWidth и BBox
 				for (j = startCh; font.getItalic() && j < this.charWidths.length; ++j) {
@@ -1029,7 +1127,7 @@
 			}
 			return tm;
 		};
-
+		
 		/**
 		 * @param {DrawingContext} drawingCtx
 		 * @param {Number} x
@@ -1044,8 +1142,10 @@
 			var ppiy = ctx.getPPIY();
 			var align = this.flags ? this.flags.textAlign : null;
 			var i, j, p, p_, strBeg;
-			var n = 0, l = this.lines[0], x1 = l ? initX(0) : 0, y1 = y, dx = l ? computeWordDeltaX() : 0;
-
+			var n = 0, l = this.lines[0], x1 = l ? this.initStartX(0, l, x, maxWidth) : 0, y1 = y, dx = l ? computeWordDeltaX() : 0;
+			
+			ctx.setTextRotated(!!this.angle);
+			
 			function initX(startPos) {
 				var x_ = x;
 				if (align === AscCommon.align_Right) {
@@ -1069,7 +1169,21 @@
 				}
 				return c > 1 ? (maxWidth - l.tw) / (c - 1) : 0;
 			}
+			
+			function renderGraphemes(begin, end, x, y, fontSize) {
+				
+				for (let charPos = begin; charPos < end; ++charPos) {
+					
+					let gr = self._getCharPropAt(charPos).grapheme;
+					if (AscFonts.NO_GRAPHEME !== gr)
+						AscFonts.DrawGrapheme(gr, ctx, x, y, fontSize, ppiy / 25.4);
 
+					x += self.charWidths[charPos];
+				}
+				
+				return x;
+			}
+			
 			function renderFragment(begin, end, prop, angle) {
 				var dh = prop && prop.lm && prop.lm.bl2 > 0 ? prop.lm.bl2 - prop.lm.bl : 0;
 				var dw = self._calcCharsWidth(strBeg, end - 1);
@@ -1078,24 +1192,29 @@
 				var isSO = so === true;
 				var fsz, x2, y, lw, dy, i, b, x_, cp;
 				var bl = asc_round(l.bl * zoom);
-
+				
+				if (begin > end)
+					return;
+				
+				let fontSize = prop.font.getSize();
 				y = y1 + bl + dh;
 				if (align !== AscCommon.align_Justify || dx < 0.000001) {
-					ctx.fillTextCode(self.chars.slice(begin, end), x1, y, undefined, self.charWidths.slice(begin, end), angle);
+					renderGraphemes(begin, end, x1, y, fontSize);
 				} else {
 					for (i = b = begin, x_ = x1; i < end; ++i) {
 						cp = self.charProps[i];
 						if (cp && cp.wrd && i > b) {
-							ctx.fillTextCode(self.chars.slice(b, i), x_, y, undefined, self.charWidths.slice(b, i), angle);
+							renderGraphemes(b, i, x_, y, fontSize);
 							x_ += self._calcCharsWidth(b, i - 1) + dx;
 							dw += dx;
 							b = i;
 						}
 					}
 					if (i > b) { // draw remainder of text
-						ctx.fillTextCode(self.chars.slice(b, i), x_, y, undefined, self.charWidths.slice(b, i), angle);
+						renderGraphemes(b, i, x_, y, fontSize);
 					}
 				}
+				
 
 				if (isSO || ul) {
 
@@ -1127,7 +1246,7 @@
 
 				return dw;
 			}
-
+			
 			for (i = 0, strBeg = 0; i < this.chars.length; ++i) {
 				p = this.charProps[i];
 
@@ -1159,7 +1278,7 @@
 						// begin new line
 						y1 += asc_round(l.th * zoom);
 						l = self.lines[++n];
-						x1 = initX(i);
+						x1 = self.initStartX(i, l, x, maxWidth);
 						dx = computeWordDeltaX();
 					}
 				}
@@ -1167,6 +1286,20 @@
 			if (strBeg < i) {
 				// render text remainder
 				renderFragment(strBeg, i, p_, this.angle);
+			}
+		};
+
+		StringRender.prototype.initStartX = function (startPos, l, x, maxWidth, initAllLines) {
+			let align = this.flags ? this.flags.textAlign : null;
+			if (initAllLines) {
+				if (this.lines) {
+					let lineWidth = this._calcLineWidth(startPos);
+					for (let i = 0; i < this.lines.length; ++i) {
+						this.lines[i].initStartX(lineWidth, x, maxWidth, align);
+					}
+				}
+			} else {
+				return l.initStartX(this._calcLineWidth(startPos), x, maxWidth, align);
 			}
 		};
 
@@ -1192,12 +1325,13 @@
 		};
 
 		StringRender.prototype._setFont = function (ctx, font) {
-			if (!font.isEqual(ctx.font) || this.fontNeedUpdate) {
-				ctx.setFont(font, this.angle);
-				this.fontNeedUpdate = false;
-				return true;
-			}
-			return false;
+			ctx.setFont(font, this.angle);
+		};
+		
+		StringRender.prototype._isCombinedChar = function(pos) {
+			let p = this._getCharPropAt(pos);
+			let c = this.chars[pos];
+			return !p.nl && !this.codesSpace[c] && (AscFonts.NO_GRAPHEME === p.grapheme);
 		};
 
 

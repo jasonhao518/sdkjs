@@ -1994,6 +1994,10 @@ CMathBase.prototype.Make_ShdColor = function(PDSE, CurTextPr)
                     pGraphics.b_color1( CurTextPr.Color.r, CurTextPr.Color.g, CurTextPr.Color.b, 255);
                 }
             }
+			else if (pGraphics.m_bIsTextDrawer)
+			{
+				pGraphics.SetTextPr(CurTextPr, PDSE.Theme);
+			}
         }
     }
 
@@ -2422,7 +2426,7 @@ CMathBase.prototype.raw_SetReviewType = function(Type, Info)
 {
     this.ReviewType = Type;
     this.ReviewInfo = Info;
-    this.private_UpdateTrackRevisions();
+    this.updateTrackRevisions();
 };
 CMathBase.prototype.GetReviewType = function()
 {

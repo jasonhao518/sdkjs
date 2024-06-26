@@ -58,7 +58,7 @@ CDocumentContentBase.prototype.GetId = function()
 };
 CDocumentContentBase.prototype.GetApi = function()
 {
-	return editor;
+	return Asc.editor;
 };
 /**
  * Получаем ссылку на основной объект документа
@@ -70,6 +70,11 @@ CDocumentContentBase.prototype.GetLogicDocument = function()
 		return this;
 
 	return this.LogicDocument;
+};
+CDocumentContentBase.prototype.getDrawingDocument = function()
+{
+	let api = this.GetApi();
+	return api && api.getDrawingDocument();
 };
 /**
  * Получаем тип активной части документа.
@@ -443,7 +448,7 @@ CDocumentContentBase.prototype.MoveCursorToNearestPos = function(oNearestPos)
 };
 CDocumentContentBase.prototype.private_CreateNewParagraph = function()
 {
-	var oPara = new Paragraph(this.DrawingDocument, this, this.bPresentation === true);
+	var oPara = new AscWord.Paragraph(this, this.bPresentation === true);
 	oPara.Correct_Content();
 	oPara.MoveCursorToStartPos(false);
 	return oPara;
@@ -1287,7 +1292,7 @@ CDocumentContentBase.prototype.private_AddContentControl = function(nContentCont
 				}
 				else
 				{
-					var oNewParagraph = new Paragraph(this.DrawingDocument, this);
+					var oNewParagraph = new AscWord.Paragraph();
 					oElement.Split(oNewParagraph);
 
 					this.AddToContent(nContentPos + 1, oNewParagraph);
@@ -2432,7 +2437,7 @@ CDocumentContentBase.prototype.UpdateInterfaceParaPr = function()
 	paraPr.CanAddDropCap = this.CanAddDropCap();
 	
 	let logicDocument = this.GetLogicDocument();
-	if (logicDocument)
+	if (logicDocument && logicDocument.IsDocumentEditor())
 	{
 		let selectedInfo = logicDocument.GetSelectedElementsInfo({CheckAllSelection : true});
 
@@ -2461,18 +2466,18 @@ CDocumentContentBase.prototype.UpdateInterfaceParaPr = function()
 		paraPr.Shd.Unifill.check(this.GetTheme(), this.GetColorMap());
 	
 	// Если мы находимся внутри автофигуры, тогда нам надо проверить лок параграфа, в котором находится автофигура
-	if (logicDocument
-		&& logicDocument.IsDocumentEditor()
-		&& docpostype_DrawingObjects === logicDocument.GetDocPosType()
-		&& true !== paraPr.Locked)
+	if (logicDocument && logicDocument.IsDocumentEditor())
 	{
-		let drawing = logicDocument.GetDrawingObjects().getMajorParaDrawing();
-		if (drawing)
-			paraPr.Locked = drawing.Lock.Is_Locked();
+		if(docpostype_DrawingObjects === logicDocument.GetDocPosType() && true !== paraPr.Locked)
+		{
+			let drawing = logicDocument.GetDrawingObjects().getMajorParaDrawing();
+			if (drawing)
+				paraPr.Locked = drawing.Lock.Is_Locked();
+		}
+		paraPr.StyleName = AscWord.DisplayStyleCalculator.CalculateName(this);
+		api.sync_ParaStyleName(paraPr.StyleName);
 	}
-	
-	paraPr.StyleName = AscWord.DisplayStyleCalculator.CalculateName(this);
-	api.sync_ParaStyleName(paraPr.StyleName);
+
 	api.UpdateParagraphProp(paraPr);
 };
 CDocumentContentBase.prototype.CanAddDropCap = function()
@@ -2848,4 +2853,17 @@ CDocumentContentBase.prototype.getSelectionInfo = function()
 CDocumentContentBase.prototype.getDocumentContentPosition = function(isSelection, isStart)
 {
 	return this.GetContentPosition(isSelection, isStart);
+};
+CDocumentContentBase.prototype.GetCurrentRun = function()
+{
+	let paragraph = this.GetCurrentParagraph(false, false);
+	if (!paragraph || !paragraph.IsParagraph())
+		return null;
+	
+	let paraPos = paragraph.Get_ParaContentPos(false);
+	let run = paragraph.GetElementByPos(paraPos);
+	if (!run || !(run instanceof AscWord.CRun))
+		return null;
+	
+	return run;
 };

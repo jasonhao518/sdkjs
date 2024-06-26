@@ -92,7 +92,6 @@
 		
 		this.complexFields = new AscWord.ParagraphComplexFieldStack();
 		
-		this.rtl = false;
 		this.bidiFlow = new AscWord.BidiFlow(this);
 		
 		this.run       = null;
@@ -108,7 +107,7 @@
 		let logicDocument = paragraph.GetLogicDocument();
 		let commentManager = logicDocument && logicDocument.IsDocumentEditor() ? logicDocument.GetCommentsManager() : null;
 		
-		this.DrawColl           = undefined === graphics.RENDERER_PDF_FLAG;
+		this.DrawColl           = !graphics.isPdf();
 		this.DrawSearch         = logicDocument && logicDocument.IsDocumentEditor() && logicDocument.SearchEngine.Selection;
 		this.DrawComments       = commentManager && commentManager.isUse();
 		this.DrawSolvedComments = commentManager && commentManager.isUseSolved();
@@ -149,7 +148,7 @@
 		this.checkNumbering();
 		
 		this.spaces = spaceCount;
-		this.bidiFlow.begin(this.rtl);
+		this.bidiFlow.begin(this.Paragraph.isRtlDirection());
 		
 		this.InlineSdt = [];
 		

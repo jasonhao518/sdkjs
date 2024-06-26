@@ -33,7 +33,32 @@
 $(function () {
 
 	let logicDocument = AscTest.CreateLogicDocument();
-
+	
+	function addShape(x, y, h, w)
+	{
+		const drawing = new ParaDrawing(w, h, null, logicDocument.GetDrawingDocument(), logicDocument, null);
+		const shapeTrack = new AscFormat.NewShapeTrack('rect', x, y, logicDocument.theme, null, null, null, 0);
+		shapeTrack.track({}, x+ w, y + h);
+		const shape = shapeTrack.getShape(true, logicDocument.GetDrawingDocument(), null);
+		shape.setBDeleted(false);
+		
+		shape.setParent(drawing);
+		drawing.Set_GraphicObject(shape);
+		drawing.Set_DrawingType(drawing_Anchor);
+		drawing.Set_WrappingType(WRAPPING_TYPE_NONE);
+		drawing.Set_Distance(0, 0, 0, 0);
+		logicDocument.AddToParagraph(drawing);
+		return drawing;
+	}
+	function createTextBoxContent(drawing)
+	{
+		let shape = drawing.GraphicObj;
+		shape.createTextBoxContent();
+		return shape.getDocContent();
+		
+	}
+	
+	
 	QUnit.module("Check text input in the document editor");
 
 	let GetParagraphText = AscTest.GetParagraphText;
@@ -42,7 +67,7 @@ $(function () {
 	{
 		AscTest.ClearDocument();
 		
-		let p = new AscWord.CParagraph(AscTest.DrawingDocument);
+		let p = new AscWord.Paragraph();
 		logicDocument.AddToContent(0, p);
 		
 		logicDocument.SelectAll();
@@ -96,7 +121,7 @@ $(function () {
 		assert.strictEqual(GetParagraphText(p), "xx", "Test special case, when added symbols collect to a single grapheme with previous symbols");
 		
 		// Вводим на сингальском 1ෑඒ (1-e-e-t)
-		p = new AscWord.CParagraph(AscTest.DrawingDocument);
+		p = new AscWord.Paragraph();
 		logicDocument.PushToContent(p);
 		AscTest.MoveCursorToParagraph(p);
 		AscTest.EnterText("1");
@@ -114,7 +139,7 @@ $(function () {
 		AscTest.StartCollaboration();
 		
 		AscTest.ClearDocument();
-		let p = new AscWord.CParagraph(AscTest.DrawingDocument);
+		let p = new AscWord.Paragraph();
 		logicDocument.AddToContent(0, p);
 		
 		AscTest.EnterText("ABC");
@@ -139,7 +164,7 @@ $(function () {
 		AscTest.StartTextSpeaker();
 		
 		AscTest.ClearDocument();
-		let p = new AscWord.CParagraph(AscTest.DrawingDocument);
+		let p = new AscWord.Paragraph();
 		logicDocument.AddToContent(0, p);
 		
 		AscTest.EnterText("ABC");
@@ -155,7 +180,7 @@ $(function () {
 		assert.strictEqual(GetParagraphText(p), "AB123QRSC", "Add text '111' and correct it with '123' in collaboration (no sync between actions)");
 		
 		// Вводим на сингальском 1ෑඒ (1-e-e-t)
-		p = new AscWord.CParagraph(AscTest.DrawingDocument);
+		p = new AscWord.Paragraph();
 		logicDocument.PushToContent(p);
 		AscTest.MoveCursorToParagraph(p);
 		AscTest.EnterText("1");
@@ -195,7 +220,7 @@ $(function () {
 		{
 			AscTest.ClearDocument();
 
-			let p = new AscWord.CParagraph(AscTest.DrawingDocument);
+			let p = new AscWord.Paragraph();
 			logicDocument.AddToContent(0, p);
 
 			let overallText = "";
@@ -270,5 +295,40 @@ $(function () {
 			[true, true],
 			["3", "ෑඒ"]
 		);
+	});
+	QUnit.test("Test EnterText/CorrectEnterText/CompositeInput in Shape", function (assert)
+	{
+		// Делаем тест по сценарию бага 67336 для прокерки корректности ввода в автофигуру
+		AscTest.ClearDocument();
+		
+		let p = new AscWord.Paragraph();
+		logicDocument.AddToContent(0, p);
+		
+		let drawing = addShape(0, 0, 100, 100);
+		p.AddToParagraph(drawing);
+		
+		let docContent = createTextBoxContent(drawing);
+		pInShape = docContent.GetElement(0);
+		
+		assert.strictEqual(GetParagraphText(p), "");
+		assert.strictEqual(GetParagraphText(pInShape), "");
+		
+		AscTest.MoveCursorToParagraph(pInShape, true);
+
+		let _textInShape = "Text in shape";
+		AscTest.BeginCompositeInput();
+		AscTest.ReplaceCompositeInput("Test");
+		AscTest.ReplaceCompositeInput(_textInShape);
+		AscTest.EndCompositeInput();
+		assert.strictEqual(GetParagraphText(p), "");
+		assert.strictEqual(GetParagraphText(pInShape), _textInShape);
+
+		AscTest.CorrectEnterText(_textInShape, "");
+		assert.strictEqual(GetParagraphText(p), "");
+		assert.strictEqual(GetParagraphText(pInShape), "");
+
+		AscTest.EnterText(_textInShape);
+		assert.strictEqual(GetParagraphText(p), "");
+		assert.strictEqual(GetParagraphText(pInShape), _textInShape);
 	});
 });

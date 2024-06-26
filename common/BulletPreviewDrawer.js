@@ -233,10 +233,7 @@
 		{
 			if(this.m_oApi.getEditorId() === AscCommon.c_oEditorId.Word)
 			{
-				if(oGraphics.darkModeOverride3)
-				{
-					oGraphics.darkModeOverride3();
-				}
+				oGraphics.setDarkMode();
 			}
 		}
 
@@ -438,7 +435,18 @@
 		const oThis = this;
 		this.checkFonts(function ()
 		{
-			oThis.draw();
+
+			if (oThis.m_oLogicDocument && oThis.m_oLogicDocument.IsDocumentEditor())
+			{
+				const bIsOldTrackRevisions = oThis.m_oLogicDocument.GetLocalTrackRevisions();
+				oThis.m_oLogicDocument.SetTrackRevisions(false);
+				oThis.draw();
+				oThis.m_oLogicDocument.SetTrackRevisions(bIsOldTrackRevisions);
+			}
+			else
+			{
+				oThis.draw();
+			}
 		});
 	};
 
