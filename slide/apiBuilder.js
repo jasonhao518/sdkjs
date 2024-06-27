@@ -2087,6 +2087,10 @@
 		return JSON.stringify(oResult);
     };
 
+    ApiLayout.prototype.Id = function(){
+		return this.Layout.Id;
+    };
+
     //------------------------------------------------------------------------------------------------------------------
     //
     // ApiPlaceholder
