@@ -394,16 +394,6 @@
 		var oMaster = oSlide.Layout.Master.Id;
 		var oLayout = oSlide.Layout.Id;
 
-		// нет смысла тащить master за слайдом без layout
-		if (bWriteLayout || (bWriteMaster && bWriteAllMasLayouts))
-		{
-			if (bWriteMaster)
-				oMaster = this.SerMasterSlide(oSlide.Layout.Master, bWriteAllMasLayouts);
-
-			if (!bWriteAllMasLayouts)
-				oLayout = this.SerSlideLayout(oSlide.Layout, false);
-		}
-
 		return {
 			"notes":            this.SerNotes(oSlide.notes),
 			"master":           oMaster,

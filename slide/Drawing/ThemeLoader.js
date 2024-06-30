@@ -87,6 +87,7 @@ function CThemeLoader()
     this.IsReloadBinaryThemeEditorNow = false;
 
     var oThis = this;
+    const regex = /^[a-z0-9]+$/i;
 
     this.StartLoadTheme = function(indexTheme)
     {
@@ -96,7 +97,7 @@ function CThemeLoader()
         this.Api.StartLoadTheme();
         this.CurrentLoadThemeIndex = -1;
 
-        if (indexTheme >= 0)
+        if (regex.test(indexTheme))
         {
             theme_info = this.Themes.EditorThemes[indexTheme];
             theme_load_info = this.themes_info_editor[indexTheme];
@@ -114,7 +115,7 @@ function CThemeLoader()
         // применяется тема из стандартных.
         if (null != theme_load_info)
         {
-            if (indexTheme >= 0 && theme_load_info.Master.sldLayoutLst.length === 0)
+            if (regex.test(indexTheme) && theme_load_info.Master.sldLayoutLst.length === 0)
             {
                 // мега схема. нужно переоткрыть бинарник, чтобы все открылось с историей
                 this.IsReloadBinaryThemeEditorNow = true;
@@ -130,7 +131,7 @@ function CThemeLoader()
         this.Api.sync_StartAction(Asc.c_oAscAsyncActionType.BlockInteraction, Asc.c_oAscAsyncAction.LoadTheme);
 
         // значит эта тема еще не загружалась
-        var theme_src = this.ThemesUrl + "theme" + (this.CurrentLoadThemeIndex + 1) + "/theme.bin";
+        var theme_src = this.ThemesUrl + "theme" + (this.CurrentLoadThemeIndex + 1) + "/theme.bin?filename=" + this.Api.GetFullName();
         this.LoadThemeJSAsync(theme_src);
 
         this.Api.StartLoadTheme();
