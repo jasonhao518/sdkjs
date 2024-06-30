@@ -27,12 +27,12 @@ GRUNT_ENV += PUBLISHER_URL="$(PUBLISHER_URL)"
 WEBAPPS_DIR := web-apps
 
 WEBAPPS = $(OUTPUT)/$(WEBAPPS_DIR)
-NODE_MODULES = build/node_modules ../$(WEBAPPS_DIR)/build/node_modules
-#PACKAGE_JSON = build/package.json ../$(WEBAPPS_DIR)/build/package.json
-WEBAPPS_FILES += ../$(WEBAPPS_DIR)/deploy/web-apps/apps/api/documents/api.js
-WEBAPPS_FILES += ../$(WEBAPPS_DIR)/deploy/web-apps/apps/documenteditor/main/app.js
-WEBAPPS_FILES += ../$(WEBAPPS_DIR)/deploy/web-apps/apps/presentationeditor/main/app.js
-WEBAPPS_FILES += ../$(WEBAPPS_DIR)/deploy/web-apps/apps/spreadsheeteditor/main/app.js
+NODE_MODULES = build/node_modules ../../$(WEBAPPS_DIR)/build/node_modules
+#PACKAGE_JSON = build/package.json ../../$(WEBAPPS_DIR)/build/package.json
+WEBAPPS_FILES += ../../$(WEBAPPS_DIR)/deploy/web-apps/apps/api/documents/api.js
+WEBAPPS_FILES += ../../$(WEBAPPS_DIR)/deploy/web-apps/apps/documenteditor/main/app.js
+WEBAPPS_FILES += ../../$(WEBAPPS_DIR)/deploy/web-apps/apps/presentationeditor/main/app.js
+WEBAPPS_FILES += ../../$(WEBAPPS_DIR)/deploy/web-apps/apps/spreadsheeteditor/main/app.js
 SDKJS_FILES += word/sdk-all.js
 
 .PHONY: all desktop
@@ -41,10 +41,10 @@ all: $(WEBAPPS)
 
 $(WEBAPPS): $(WEBAPPS_FILES)
 	mkdir -p $(OUTPUT)/$(WEBAPPS_DIR) && \
-		cp -r -t $(OUTPUT)/$(WEBAPPS_DIR) ../$(WEBAPPS_DIR)/deploy/** 
+		cp -r -t $(OUTPUT)/$(WEBAPPS_DIR) ../../$(WEBAPPS_DIR)/deploy/** 
 
 $(WEBAPPS_FILES): $(NODE_MODULES) $(SDKJS_FILES)
-	cd ../$(WEBAPPS_DIR)/build  && \
+	cd ../../$(WEBAPPS_DIR)/build  && \
 		$(GRUNT_ENV) $(GRUNT) deploy-$(filter %editor documents,$(subst /, ,$(@D)))-component $(GRUNT_FLAGS)
 
 $(SDKJS_FILES): $(NODE_MODULES)
