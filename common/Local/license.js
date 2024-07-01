@@ -46,4 +46,4 @@ AscCommon.baseEditorsApi.prototype._onEndPermissions = function()
 };
 
 // !!!
-window["compareVersions"] = true;
+window["compareVersions"] = false;		
