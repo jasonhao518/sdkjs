@@ -87,11 +87,10 @@ function CThemeLoader()
     this.IsReloadBinaryThemeEditorNow = false;
 
     var oThis = this;
-    const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    var regex = /^[a-z0-9]+$/i;
 
     this.StartLoadTheme = function(indexTheme)
     {
-        console.log("indexTheme:" + indexTheme);
         var theme_info = null;
         var theme_load_info = null;
 
