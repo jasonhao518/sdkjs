@@ -5298,7 +5298,7 @@ function CThumbnailsManager()
 				}
 				var text_color = null;
 				let sTextColor = AscCommon.GlobalSkin.ThumbnailsPageNumberText;
-				if (!page.IsLocked)
+				if (!page || !page.IsLocked)
 					sTextColor = AscCommon.GlobalSkin.ThumbnailsPageNumberText;
 				else
 					sTextColor = AscCommon.GlobalSkin.ThumbnailsLockColor;
@@ -5465,7 +5465,7 @@ function CThumbnailsManager()
 		{
 			var page = this.m_arrPages[i];
 
-			if (page.IsLocked)
+			if (page && page.IsLocked)
 			{
 				var _lock_focus = AscCommon.GlobalSkin.ThumbnailsLockColor;
 				var _lock_color = AscCommon.GlobalSkin.ThumbnailsLockColor;
@@ -5481,13 +5481,13 @@ function CThumbnailsManager()
 				continue;
 			}
 
-			if (page.IsSelected && page.IsFocused)
+			if (page && page.IsSelected && page.IsFocused)
 			{
 				this.FocusRectFlat(_style_select_focus, context, page.left, page.top, page.right, page.bottom);
-			} else if (page.IsSelected)
+			} else if (page && page.IsSelected)
 			{
 				this.FocusRectFlat(_style_select, context, page.left, page.top, page.right, page.bottom);
-			} else if (page.IsFocused)
+			} else if (page && page.IsFocused)
 			{
 				this.FocusRectFlat(_style_focus, context, page.left, page.top, page.right, page.bottom, true);
 			}
